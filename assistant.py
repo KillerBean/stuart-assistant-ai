@@ -21,6 +21,19 @@ class Assistant:
         self.model = whisper.load_model("small")
         wikipedia.set_lang("pt")
         print("Model loaded.")
+        self.app_aliases = {
+            "navegador": {
+                "Linux": "firefox",
+                "Windows": "firefox",
+                "Darwin": "Firefox"
+            },
+            "editor de código": {
+                "Linux": "code",
+                "Windows": "code",
+                "Darwin": "Visual Studio Code"
+            },
+            # Adicione mais apelidos aqui
+        }
 
     def _print_device_info(self):
         print("Available audio input devices:")
@@ -125,28 +138,38 @@ class Assistant:
             except requests.exceptions.RequestException:
                 self.speak(f"Desculpe, não consegui obter a previsão do tempo para {city}.")
         elif "abra" in command or "inicie" in command:
-            app_name = command.replace("abra", "").replace("inicie", "").strip()
-            if not app_name:
+            spoken_name = command.replace("abra", "").replace("inicie", "").strip()
+            if not spoken_name:
                 self.speak("Claro, qual programa você gostaria de abrir?")
                 return
 
-            self.speak(f"Ok, abrindo {app_name}.")
+            system = platform.system()
+            executable_name = spoken_name
+
+            # Check if the spoken name is an alias
+            if spoken_name in self.app_aliases:
+                if system in self.app_aliases[spoken_name]:
+                    executable_name = self.app_aliases[spoken_name][system]
+                else:
+                    self.speak(f"Não sei como abrir o '{spoken_name}' neste sistema operacional.")
+                    return
+
+            self.speak(f"Ok, abrindo {spoken_name}.")
             try:
-                system = platform.system()
                 if system == "Windows":
                     # No Windows, 'start' é um comando de shell
-                    subprocess.Popen(['start', app_name], shell=True)
+                    subprocess.Popen(['start', executable_name], shell=True)
                 elif system == "Darwin":  # macOS
-                    subprocess.Popen(['open', '-a', app_name])
+                    subprocess.Popen(['open', '-a', executable_name])
                 elif system == "Linux":
-                    subprocess.Popen([app_name])
+                    subprocess.Popen([executable_name])
                 else:
                     self.speak(f"Desculpe, não sei como abrir programas no sistema {system}.")
             except FileNotFoundError:
-                self.speak(f"Desculpe, não consegui encontrar o programa {app_name}.")
+                self.speak(f"Desculpe, não consegui encontrar o programa {spoken_name}.")
             except Exception as e:
                 print(f"Error opening application: {e}")
-                self.speak(f"Ocorreu um erro ao tentar abrir o {app_name}.")
+                self.speak(f"Ocorreu um erro ao tentar abrir o {spoken_name}.")
         else:
             self.speak("Desculpe, não entendi o comando.")
 
