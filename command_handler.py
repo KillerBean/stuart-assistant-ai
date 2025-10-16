@@ -14,7 +14,7 @@ class CommandHandler:
         self.confirm = confirmation_func
         self.app_aliases = app_aliases
         self.commands = {
-            "horas são": self._get_time,
+            "que horas são": self._get_time,
             "conte uma piada": self._tell_joke,
             "pesquise sobre": self._search_wikipedia,
             "o que é": self._search_wikipedia,

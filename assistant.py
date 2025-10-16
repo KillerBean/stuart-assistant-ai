@@ -11,7 +11,7 @@ from command_handler import CommandHandler
 
 class Assistant:
     def __init__(self):
-        self.keyword = os.getenv("ASSISTANT_KEYWORD", "chronos").lower()
+        self.keyword = os.getenv("ASSISTANT_KEYWORD", "cronos").lower()
         self.temp_file_path = "tmp/temp_audio.wav"
         self.recognizer = sr.Recognizer()
         print("Loading Whisper model...")
@@ -110,7 +110,10 @@ class Assistant:
             return False
 
     def handle_command(self, text: str):
-        command = text.lower().replace(self.keyword, "").strip()
+        command = text.lower().replace(self.keyword, "").strip().lstrip(",").strip()
+        if not command:
+            self.speak("Sim, em que posso ajudar?")
+            return
         print(f"Keyword detected! Command: '{command}'")
         self.command_handler.process(command)
 
