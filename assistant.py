@@ -7,6 +7,7 @@ from gtts import gTTS
 from playsound import playsound
 import uuid
 from datetime import datetime
+import random
 
 class Assistant:
     def __init__(self):
@@ -72,6 +73,16 @@ class Assistant:
         if "horas são" in command:
             now = datetime.now().strftime("%H:%M")
             self.speak(f"São {now}.")
+        elif "conte uma piada" in command:
+            jokes = [
+                "O que o pato disse para a pata? Vem quá!",
+                "Por que o pinheiro não se perde na floresta? Porque ele tem uma pinha!",
+                "Qual é o cúmulo da rapidez? Sair de uma briga antes do primeiro soco.",
+                "O que um cromossomo disse para o outro? Cromossomos felizes!",
+                "Você conhece a piada do pônei? Pô nei eu."
+            ]
+            joke = random.choice(jokes)
+            self.speak(joke)
         else:
             self.speak("Desculpe, não entendi o comando.")
 
