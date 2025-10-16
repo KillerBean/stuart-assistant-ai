@@ -47,7 +47,7 @@ PyQt6-Qt6==6.9.1
 PyQt6_sip==13.10.2
 python-dateutil==2.9.0.post0
 regex==2024.11.6
-requests==2.32.4
+requests==2.31.0
 scipy==1.16.0
 setuptools==80.9.0
 six==1.17.0

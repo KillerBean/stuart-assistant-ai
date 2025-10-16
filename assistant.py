@@ -1,14 +1,14 @@
 import os
-import speech_recognition as sr
-import sounddevice as sd
-import whisper
-from tmp_file_handler import TempFileHandler
-from gtts import gTTS
-from playsound import playsound
 import uuid
-from datetime import datetime
+import whisper
 import requests
 import wikipedia
+from gtts import gTTS
+import sounddevice as sd
+from datetime import datetime
+from playsound import playsound
+import speech_recognition as sr
+from tmp_file_handler import TempFileHandler
 
 class Assistant:
     def __init__(self):
