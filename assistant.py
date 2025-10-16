@@ -7,7 +7,6 @@ from gtts import gTTS
 from playsound import playsound
 import uuid
 from datetime import datetime
-import random
 import requests
 import wikipedia
 
@@ -106,6 +105,23 @@ class Assistant:
             except Exception as e:
                 print(f"Error fetching from Wikipedia: {e}")
                 self.speak("Desculpe, ocorreu um erro ao tentar pesquisar na Wikipedia.")
+        elif "previsão do tempo" in command:
+            city = ""
+            if "para" in command:
+                city = command.split("para")[-1].strip()
+            
+            if not city:
+                self.speak("Claro, para qual cidade você gostaria da previsão do tempo?")
+                return
+
+            self.speak(f"Verificando a previsão do tempo para {city}.")
+            try:
+                url = f"https://wttr.in/{city}?format=3"
+                response = requests.get(url)
+                response.raise_for_status()
+                self.speak(response.text)
+            except requests.exceptions.RequestException:
+                self.speak(f"Desculpe, não consegui obter a previsão do tempo para {city}.")
         else:
             self.speak("Desculpe, não entendi o comando.")
 
