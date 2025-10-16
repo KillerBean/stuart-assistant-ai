@@ -1,8 +1,10 @@
 import os
 import uuid
+import platform
 import whisper
 import requests
 import wikipedia
+import subprocess
 from gtts import gTTS
 import sounddevice as sd
 from datetime import datetime
@@ -122,6 +124,29 @@ class Assistant:
                 self.speak(response.text)
             except requests.exceptions.RequestException:
                 self.speak(f"Desculpe, não consegui obter a previsão do tempo para {city}.")
+        elif "abra" in command or "inicie" in command:
+            app_name = command.replace("abra", "").replace("inicie", "").strip()
+            if not app_name:
+                self.speak("Claro, qual programa você gostaria de abrir?")
+                return
+
+            self.speak(f"Ok, abrindo {app_name}.")
+            try:
+                system = platform.system()
+                if system == "Windows":
+                    # No Windows, 'start' é um comando de shell
+                    subprocess.Popen(['start', app_name], shell=True)
+                elif system == "Darwin":  # macOS
+                    subprocess.Popen(['open', '-a', app_name])
+                elif system == "Linux":
+                    subprocess.Popen([app_name])
+                else:
+                    self.speak(f"Desculpe, não sei como abrir programas no sistema {system}.")
+            except FileNotFoundError:
+                self.speak(f"Desculpe, não consegui encontrar o programa {app_name}.")
+            except Exception as e:
+                print(f"Error opening application: {e}")
+                self.speak(f"Ocorreu um erro ao tentar abrir o {app_name}.")
         else:
             self.speak("Desculpe, não entendi o comando.")
 
