@@ -26,6 +26,7 @@ class CommandHandler:
 
     def process(self, command: str):
         """Finds and executes the appropriate command."""
+        #TODO: Melhorar o sistema de correspondência de comandos para ser mais flexível
         try:
             for keyword, function in self.commands.items():
                 if command.startswith(keyword):
@@ -86,6 +87,9 @@ class CommandHandler:
         if not spoken_name:
             self.speak("Claro, qual programa você gostaria de abrir?")
             return
+        
+        #TODO: Melhorar o mapeamento de nomes falados para nomes de executáveis
+        #TODO: filtrar opções para fins de segurança
 
         system = platform.system()
         executable_name = spoken_name
@@ -123,3 +127,17 @@ class CommandHandler:
                 self.speak("Ocorreu um erro ao tentar executar o comando de desligamento.")
         else:
             self.speak("Ação cancelada.")
+
+    def _cancel_shutdown(self, command: str):
+        self.speak("Cancelando o desligamento do computador.")
+        system = platform.system()
+        try:
+            if system == "Windows":
+                subprocess.run(["shutdown", "/a"])
+            elif system == "Linux" or system == "Darwin":  # Linux ou macOS
+                subprocess.run(["shutdown", "-c"])
+            else:
+                self.speak("Desculpe, não sei como cancelar o desligamento neste sistema.")
+        except Exception as e:
+            print(f"Error trying to cancel shutdown: {e}")
+            self.speak("Ocorreu um erro ao tentar cancelar o comando de desligamento.")
