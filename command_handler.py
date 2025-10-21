@@ -21,7 +21,9 @@ class CommandHandler:
             "previsão do tempo": self._get_weather,
             "abra": self._open_app,
             "inicie": self._open_app,
-            "desligar o computador": self._shutdown_computer,
+            "desligar computador": self._shutdown_computer,
+            "cancelar desligamento": self._cancel_shutdown,
+            "sair": self._quit,
         }
 
     def process(self, command: str):
@@ -141,3 +143,7 @@ class CommandHandler:
         except Exception as e:
             print(f"Error trying to cancel shutdown: {e}")
             self.speak("Ocorreu um erro ao tentar cancelar o comando de desligamento.")
+
+    def _quit(self, command: str):
+        self.speak("Encerrando a assistente. Até logo!")
+        exit(0)
