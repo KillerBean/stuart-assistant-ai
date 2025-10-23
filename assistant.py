@@ -11,7 +11,7 @@ from command_handler import CommandHandler
 
 class Assistant:
     def __init__(self):
-        self.keyword = os.getenv("ASSISTANT_KEYWORD", "cronos").lower()
+        self.keyword = os.getenv("ASSISTANT_KEYWORD", "stuart").lower()
         self.temp_file_path = "tmp/temp_audio.wav"
         self.recognizer = sr.Recognizer()
         print("Loading Whisper model...")
