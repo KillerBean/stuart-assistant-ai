@@ -2,7 +2,7 @@
 
 ## Comandos de abertura de aplicativos
 
-- [ ]    Implementar uma lista branca de aplicativos permitidos
+- [ ]    Implementar uma white list de aplicativos permitidos
 - [ ]    Implementar verificação adicional para evitar injeção de comandos
 - [ ]    Implementar logs de auditoria para monitorar quais aplicativos são abertos
 - [ ]    Implementar confirmação adicional para aplicativos sensíveis
