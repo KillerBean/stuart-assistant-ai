@@ -43,3 +43,33 @@
 - [ ]    Implementar um sistema de recuperação de desastres para garantir a continuidade do serviço em caso de falhas graves
 - [ ]    Implementar um sistema de inovação para explorar novas tecnologias relacionadas à abertura de aplicativos
 - [ ]    Implementar um sistema de colaboração para permitir que os usuários compartilhem suas experiências com a abertura de aplic ativos
+
+## Usos de agentes e ferramentas
+
+- [ ] Implementar agentes para tarefas específicas
+- [ ] Desenvolver ferramentas personalizadas para integração com o assistente
+- [ ] Criar fluxos de trabalho automatizados usando agentes
+- [ ] Implementar monitoramento e gerenciamento de agentes
+- [ ] Desenvolver uma interface para gerenciar agentes e ferramentas
+- [ ] Testar e validar a eficácia dos agentes em diferentes cenários
+- [ ] Documentar o uso e a configuração de agentes e ferramentas
+- [ ] Treinar usuários sobre como utilizar agentes e ferramentas de forma eficaz
+- [ ] Implementar segurança e controle de acesso para agentes e ferramentas
+- [ ] Integrar agentes com sistemas existentes
+- [ ] Pesquisar e listar aplicativos
+- [ ] Analisar documentos longos
+- [ ] Automatizar tarefas repetitivas
+- [ ] Integrar com APIs externas
+- [ ] Realizar buscas avançadas na web
+- [ ] Gerenciar calendários e compromissos
+- [ ] Monitorar redes sociais
+- [ ] Coletar e analisar dados em tempo real
+- [ ] Realizar testes automatizados
+
+## Lista de possíveis futuras ferramentas
+
+- Langchain
+- LlamaIndex
+- HuggingFaces
+- CrewAI
+- OpenAI platform for agents
