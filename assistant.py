@@ -33,32 +33,32 @@ class Assistant:
         }
         self.command_handler = CommandHandler(self.speak, self.listen_for_confirmation, self.app_aliases)
 
-    def _print_device_info(self):
-        print("Available audio input devices:")
-        devices = sd.query_devices()
-        for idx, device in enumerate(devices):
-            if device['max_input_channels'] > 0:
-                print(f"{idx}: {device['name']}")
+    # def _print_device_info(self):
+    #     print("Available audio input devices:")
+    #     devices = sd.query_devices()
+    #     for idx, device in enumerate(devices):
+    #         if device['max_input_channels'] > 0:
+    #             print(f"{idx}: {device['name']}")
 
-    def select_input_device(self):
-        self._print_device_info()
-        try:
-            device_index = int(input("Select the input device index: "))
-            sd.default.device = device_index
-            print(f"Selected device: {sd.query_devices(device_index)['name']}")
-        except (ValueError, IndexError) as e:
-            print(f"Invalid device index. {e}")
-            exit(1)
+    # def select_input_device(self):
+    #     self._print_device_info()
+    #     try:
+    #         device_index = int(input("Select the input device index: "))
+    #         sd.default.device = device_index
+    #         print(f"Selected device: {sd.query_devices(device_index)['name']}")
+    #     except (ValueError, IndexError) as e:
+    #         print(f"Invalid device index. {e}")
+    #         exit(1)
 
-    def set_input_device_by_name(self, name):
-        devices = sd.query_devices()
-        for idx, device in enumerate(devices):
-            if name.lower() in device['name'].lower() and device['max_input_channels'] > 0:
-                sd.default.device = idx
-                print(f"Selected device: {device['name']}")
-                return device['name']
-        print(f"No input device found with name containing '{name}'")
-        exit(1)
+    # def set_input_device_by_name(self, name):
+    #     devices = sd.query_devices()
+    #     for idx, device in enumerate(devices):
+    #         if name.lower() in device['name'].lower() and device['max_input_channels'] > 0:
+    #             sd.default.device = idx
+    #             print(f"Selected device: {device['name']}")
+    #             return device['name']
+    #     print(f"No input device found with name containing '{name}'")
+    #     exit(1)
 
     def speak(self, text: str):
         """
@@ -89,16 +89,19 @@ class Assistant:
             with sr.Microphone() as source:
                 print("Listening for confirmation...")
                 # Adjust for ambient noise to better capture the short answer
-                self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
+                self.recognizer.adjust_for_ambient_noise(source, duration=1)
                 audio = self.recognizer.listen(source, timeout=5, phrase_time_limit=3)
 
                 with TempFileHandler(self.temp_file_path) as temp_file:
                     with open(temp_file, "wb") as f:
-                        f.write(audio.get_wav_data())
+                        # If audio is a generator, get the AudioData object
+                        if hasattr(audio, '__iter__') and not isinstance(audio, sr.AudioData):
+                            audio = next(audio)
+                            f.write(audio.get_wav_data())
                     
                     result = self.model.transcribe(temp_file, language="pt", fp16=False)
                 
-                response_text = result['text'].lower().strip()
+                response_text = str(result['text']).lower().strip()
                 print(f"Confirmation response: '{response_text}'")
                 return "sim" in response_text
 
@@ -130,14 +133,18 @@ class Assistant:
                     audio = self.recognizer.listen(source)
                     print("Audio captured, processing...")
                     
+                    
                     with TempFileHandler(self.temp_file_path) as temp_file:
                         with open(temp_file, "wb") as f:
-                            f.write(audio.get_wav_data())
+                            # If audio is a generator, get the AudioData object
+                            if hasattr(audio, '__iter__') and not isinstance(audio, sr.AudioData):
+                                audio = next(audio)
+                                f.write(audio.get_wav_data())
                         
                         # Transcribe using Whisper
                         result = self.model.transcribe(temp_file, language="pt", fp16=False)
                         
-                    text = result['text'].strip()
+                    text = str(result['text']).strip()
                     print(f"Heard: {text}")
 
                     if self.keyword in text.lower():
