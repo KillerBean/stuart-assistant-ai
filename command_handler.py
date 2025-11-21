@@ -5,6 +5,8 @@ from datetime import datetime
 import requests
 import wikipedia
 
+from stuart_ai.agents.web_search_agent import WebSearchAgent
+
 
 class CommandHandler:
     """Handles the processing of voice commands."""
@@ -13,6 +15,7 @@ class CommandHandler:
         self.speak = speak_func
         self.confirm = confirmation_func
         self.app_aliases = app_aliases
+        self.web_search_agent = WebSearchAgent() # Initialize the WebSearchAgent
         self.commands = {
             "que horas são": self._get_time,
             "conte uma piada": self._tell_joke,
@@ -23,6 +26,7 @@ class CommandHandler:
             "inicie": self._open_app,
             "desligar computador": self._shutdown_computer,
             "cancelar desligamento": self._cancel_shutdown,
+            "pesquisar na web sobre": self._perform_web_search, # New command
             "sair": self._quit,
         }
 
@@ -143,6 +147,21 @@ class CommandHandler:
         except Exception as e:
             print(f"Error trying to cancel shutdown: {e}")
             self.speak("Ocorreu um erro ao tentar cancelar o comando de desligamento.")
+
+    def _perform_web_search(self, command: str):
+        search_query = command.replace("pesquisar na web sobre", "").strip()
+        if not search_query:
+            self.speak("Claro, o que você gostaria que eu pesquisasse na web?")
+            return
+        
+        self.speak(f"Pesquisando na web sobre {search_query}. Isso pode levar um momento.")
+        try:
+            result = self.web_search_agent.run_search_crew(search_query)
+            self.speak("Encontrei as seguintes informações:")
+            self.speak(result)
+        except Exception as e:
+            print(f"Error performing web search for '{search_query}': {e}")
+            self.speak("Desculpe, ocorreu um erro ao realizar a pesquisa na web.")
 
     def _quit(self, command: str):
         self.speak("Encerrando a assistente. Até logo!")
