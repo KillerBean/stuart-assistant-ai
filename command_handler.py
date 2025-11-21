@@ -12,6 +12,8 @@ class CommandHandler:
 
     def __init__(self, speak_func, confirmation_func, app_aliases):
         self.web_search_agent = WebSearchAgent()
+        self.speak = speak_func
+        self.confirm = confirmation_func
         
         # Instantiate the tools class, passing all necessary dependencies
         self.assistant_tools = AssistantTools(
@@ -78,10 +80,13 @@ class CommandHandler:
             result = crew.kickoff()
             print(f"--- Crew finalizado com o resultado: '{result}' ---")
             
-            # A final check in case the agent failed to find a tool and didn't produce a coherent response.
-            if crew.calculate_usage_metrics().successful_requests > 0 and not result:
-                 print("WARN: Crew ran but returned an empty result.")
+            if result:
+                self.speak(str(result))
+            else:
+                # This is a fallback in case the agent fails to return a message.
+                print("WARN: Crew returned an empty result.")
+                self.speak("Desculpe, não entendi o comando.")
 
         except Exception as e:
             print(f"Error processing command with CrewAI: {e}")
-            self.assistant_tools.speak("Desculpe, ocorreu um erro ao processar o comando com o agente de IA.")
+            self.speak("Desculpe, ocorreu um erro ao processar o comando com o agente de IA.")
