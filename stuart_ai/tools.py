@@ -53,6 +53,9 @@ class AssistantTools:
             return f"Desculpe, não encontrei nenhum resultado para {search_term}."
         except wikipedia.exceptions.DisambiguationError:
             return f"O termo {search_term} é muito vago. Por favor, seja mais específico."
+        except Exception as e:
+            print(f"Error searching Wikipedia for '{search_term}': {e}")
+            return "Desculpe, ocorreu um erro ao pesquisar no Wikipedia."
 
     @tool
     def _get_weather(self, city: str) -> str:
