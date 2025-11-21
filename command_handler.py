@@ -16,12 +16,10 @@ class CommandHandler:
         self.confirm = confirmation_func
         self.app_aliases = app_aliases
         
-        # Dependencies are now injected
         self.llm = llm
         self.assistant_tools = assistant_tools
         self.web_search_agent = web_search_agent 
 
-        # 2. Get the list of tools from the AssistantTools instance
         tools = [
             self.assistant_tools._get_time,
             self.assistant_tools._tell_joke,
@@ -34,7 +32,6 @@ class CommandHandler:
             self.assistant_tools._quit
         ]
 
-        # 3. Create the Router Agent
         self.router_agent = Agent(
             role="Router de Comandos Inteligente",
             goal="Analisar o comando do usuário, entender a intenção e selecionar a ferramenta apropriada para executá-lo. Extraia todos os argumentos necessários para a ferramenta a partir do comando do usuário. Se nenhum comando corresponder, informe ao usuário que você não entendeu.",
