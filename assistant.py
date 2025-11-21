@@ -9,6 +9,11 @@ import speech_recognition as sr
 from tmp_file_handler import TempFileHandler
 from command_handler import CommandHandler
 
+from langchain_community.chat_models import ChatOllama
+from stuart_ai.agents.web_search_agent import WebSearchAgent
+from stuart_ai.tools import AssistantTools
+
+
 class Assistant:
     def __init__(self):
         self.keyword = os.getenv("ASSISTANT_KEYWORD", "stuart").lower()
@@ -31,7 +36,33 @@ class Assistant:
             },
             # Adicione mais apelidos aqui
         }
-        self.command_handler = CommandHandler(self.speak, self.listen_for_confirmation, self.app_aliases)
+
+        self.web_search_agent = WebSearchAgent()
+        try:
+            self.llm = ChatOllama(model="gemma3")
+        except Exception as e:
+            print("\n---")
+            print("ERROR: Could not initialize Ollama.")
+            print("Please make sure Ollama is running and the 'gemma3' model is available.")
+            print(f"Error details: {e}")
+            print("---\n")
+            raise
+
+        self.assistant_tools = AssistantTools(
+            speak_func=self.speak,
+            confirmation_func=self.listen_for_confirmation,
+            app_aliases=self.app_aliases,
+            web_search_agent=self.web_search_agent
+        )
+
+        self.command_handler = CommandHandler(
+            self.speak,
+            self.listen_for_confirmation,
+            self.app_aliases,
+            self.llm,
+            self.assistant_tools,
+            self.web_search_agent
+        )
 
     # def _print_device_info(self):
     #     print("Available audio input devices:")
