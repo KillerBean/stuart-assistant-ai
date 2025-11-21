@@ -37,7 +37,6 @@ class Assistant:
             # Adicione mais apelidos aqui
         }
 
-        self.web_search_agent = WebSearchAgent()
         try:
             self.llm = ChatOllama(model="gemma3")
         except Exception as e:
@@ -48,6 +47,7 @@ class Assistant:
             print("---\n")
             raise
 
+        self.web_search_agent = WebSearchAgent(llm=self.llm)
         self.assistant_tools = AssistantTools(
             speak_func=self.speak,
             confirmation_func=self.listen_for_confirmation,
