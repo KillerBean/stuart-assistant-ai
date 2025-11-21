@@ -1,149 +1,92 @@
-import platform
-import subprocess
-from datetime import datetime
+from langchain_community.chat_models import ChatOllama
+from crewai import Agent, Task, Crew
 
-import requests
-import wikipedia
+from stuart_ai.agents.web_search_agent import WebSearchAgent
+from stuart_ai.tools import AssistantTools
 
 
 class CommandHandler:
-    """Handles the processing of voice commands."""
+    """
+    Handles the processing of user commands using an LLM-based intent recognition system.
+    """
 
     def __init__(self, speak_func, confirmation_func, app_aliases):
+        self.web_search_agent = WebSearchAgent()
         self.speak = speak_func
         self.confirm = confirmation_func
-        self.app_aliases = app_aliases
-        self.commands = {
-            "que horas são": self._get_time,
-            "conte uma piada": self._tell_joke,
-            "pesquise sobre": self._search_wikipedia,
-            "o que é": self._search_wikipedia,
-            "previsão do tempo": self._get_weather,
-            "abra": self._open_app,
-            "inicie": self._open_app,
-            "desligar computador": self._shutdown_computer,
-            "cancelar desligamento": self._cancel_shutdown,
-            "sair": self._quit,
-        }
+        
+        # Instantiate the tools class, passing all necessary dependencies
+        self.assistant_tools = AssistantTools(
+            speak_func=speak_func,
+            confirmation_func=confirmation_func,
+            app_aliases=app_aliases,
+            web_search_agent=self.web_search_agent
+        )
+
+        # 1. Initialize the LLM for the router agent
+        try:
+            llm = ChatOllama(model="gemma3")
+        except Exception as e:
+            print("\n---")
+            print("ERROR: Could not initialize Ollama.")
+            print("Please make sure Ollama is running and the 'gemma3' model is available.")
+            print(f"Error details: {e}")
+            print("---\n")
+            raise
+
+        # 2. Get the list of tools from the AssistantTools instance
+        tools = [
+            self.assistant_tools._get_time,
+            self.assistant_tools._tell_joke,
+            self.assistant_tools._search_wikipedia,
+            self.assistant_tools._get_weather,
+            self.assistant_tools._open_app,
+            self.assistant_tools._shutdown_computer,
+            self.assistant_tools._cancel_shutdown,
+            self.assistant_tools._perform_web_search,
+            self.assistant_tools._quit
+        ]
+
+        # 3. Create the Router Agent
+        self.router_agent = Agent(
+            role="Router de Comandos Inteligente",
+            goal="Analisar o comando do usuário, entender a intenção e selecionar a ferramenta apropriada para executá-lo. Extraia todos os argumentos necessários para a ferramenta a partir do comando do usuário. Se nenhum comando corresponder, informe ao usuário que você não entendeu.",
+            backstory="Você é um assistente de IA eficiente, especialista em entender a linguagem natural e encaminhar solicitações para a função apropriada. Você é preciso e direto.",
+            llm=llm,
+            tools=tools,
+            allow_delegation=False,
+            verbose=True
+        )
 
     def process(self, command: str):
-        """Finds and executes the appropriate command."""
-        #TODO: Melhorar o sistema de correspondência de comandos para ser mais flexível
-        try:
-            for keyword, function in self.commands.items():
-                if command.startswith(keyword):
-                    function(command)
-                    return
-            self.speak("Desculpe, não entendi o comando.")
-        except Exception as e:
-            print(f"Error processing command '{command}': {e}")
-            self.speak("Desculpe, ocorreu um erro ao processar o comando.")
-
-    def _get_time(self, command: str):
-        now = datetime.now().strftime("%H:%M")
-        self.speak(f"São {now}.")
-
-    def _tell_joke(self, command: str):
-        try:
-            url = "https://v2.jokeapi.dev/joke/Any?lang=pt&blacklistFlags=nsfw,religious,political,racist,sexist,explicit"
-            response = requests.get(url)
-            response.raise_for_status()
-            joke_data = response.json()
-
-            joke = joke_data['joke'] if joke_data.get('type') == 'single' else f"{joke_data['setup']} ... {joke_data['delivery']}"
-            self.speak(joke)
-        except requests.exceptions.RequestException as e:
-            print(f"Error fetching joke from API: {e}")
-            self.speak("Desculpe, não consegui buscar uma piada agora.")
-
-    def _search_wikipedia(self, command: str):
-        search_term = command.replace("pesquise sobre", "").replace("o que é", "").strip()
-        if not search_term:
-            self.speak("Claro, o que você gostaria que eu pesquisasse?")
+        """Processes the user command by routing it to the correct tool using an LLM agent."""
+        if not command.strip():
             return
-        self.speak(f"Claro, pesquisando sobre {search_term} na Wikipedia.")
+
+        task = Task(
+            description=f"Analise e execute o seguinte comando do usuário: '{command}'. Responda em português.",
+            expected_output="A resposta em texto da ferramenta que foi executada, ou uma mensagem informando que o comando não foi entendido.",
+            agent=self.router_agent
+        )
+
+        crew = Crew(
+            agents=[self.router_agent],
+            tasks=[task],
+            verbose=True
+        )
+
         try:
-            summary = wikipedia.summary(search_term, sentences=2)
-            self.speak(summary)
-        except wikipedia.exceptions.PageError:
-            self.speak(f"Desculpe, não encontrei nenhum resultado para {search_term}.")
-        except wikipedia.exceptions.DisambiguationError:
-            self.speak(f"O termo {search_term} é muito vago. Por favor, seja mais específico.")
-
-    def _get_weather(self, command: str):
-        city = command.split("para")[-1].strip() if "para" in command else ""
-        if not city:
-            self.speak("Claro, para qual cidade você gostaria da previsão do tempo?")
-            return
-        self.speak(f"Verificando a previsão do tempo para {city}.")
-        try:
-            url = f"https://wttr.in/{city}?format=3"
-            response = requests.get(url)
-            response.raise_for_status()
-            self.speak(response.text)
-        except requests.exceptions.RequestException:
-            self.speak(f"Desculpe, não consegui obter a previsão do tempo para {city}.")
-
-    def _open_app(self, command: str):
-        spoken_name = command.replace("abra", "").replace("inicie", "").strip()
-        if not spoken_name:
-            self.speak("Claro, qual programa você gostaria de abrir?")
-            return
-        
-        #TODO: Melhorar o mapeamento de nomes falados para nomes de executáveis
-        #TODO: filtrar opções para fins de segurança
-
-        system = platform.system()
-        executable_name = spoken_name
-
-        if spoken_name in self.app_aliases and system in self.app_aliases[spoken_name]:
-            executable_name = self.app_aliases[spoken_name][system]
-
-        self.speak(f"Ok, abrindo {spoken_name}.")
-        try:
-            if system == "Windows":
-                subprocess.Popen(['start', executable_name], shell=True)
-            elif system == "Darwin":  # macOS
-                subprocess.Popen(['open', '-a', executable_name])
-            else:  # Linux
-                subprocess.Popen([executable_name])
-        except FileNotFoundError:
-            self.speak(f"Desculpe, não consegui encontrar o programa {spoken_name}.")
-        except Exception as e:
-            print(f"Error opening application: {e}")
-            self.speak(f"Ocorreu um erro ao tentar abrir o {spoken_name}.")
-
-    def _shutdown_computer(self, command: str):
-        if self.confirm("Você tem certeza que deseja desligar o computador?"):
-            self.speak("Ok, desligando o computador em 30 segundos. Adeus!")
-            system = platform.system()
-            try:
-                if system == "Windows":
-                    subprocess.run(["shutdown", "/s", "/t", "30"])
-                elif system == "Linux" or system == "Darwin":  # Linux ou macOS
-                    subprocess.run(["shutdown", "-h", "+1"]) # Desliga em 1 minuto
-                else:
-                    self.speak("Desculpe, não sei como desligar o computador neste sistema.")
-            except Exception as e:
-                print(f"Error trying to shutdown: {e}")
-                self.speak("Ocorreu um erro ao tentar executar o comando de desligamento.")
-        else:
-            self.speak("Ação cancelada.")
-
-    def _cancel_shutdown(self, command: str):
-        self.speak("Cancelando o desligamento do computador.")
-        system = platform.system()
-        try:
-            if system == "Windows":
-                subprocess.run(["shutdown", "/a"])
-            elif system == "Linux" or system == "Darwin":  # Linux ou macOS
-                subprocess.run(["shutdown", "-c"])
+            print(f"--- Executando Crew para o comando: '{command}' ---")
+            result = crew.kickoff()
+            print(f"--- Crew finalizado com o resultado: '{result}' ---")
+            
+            if result:
+                self.speak(str(result))
             else:
-                self.speak("Desculpe, não sei como cancelar o desligamento neste sistema.")
-        except Exception as e:
-            print(f"Error trying to cancel shutdown: {e}")
-            self.speak("Ocorreu um erro ao tentar cancelar o comando de desligamento.")
+                # This is a fallback in case the agent fails to return a message.
+                print("WARN: Crew returned an empty result.")
+                self.speak("Desculpe, não entendi o comando.")
 
-    def _quit(self, command: str):
-        self.speak("Encerrando a assistente. Até logo!")
-        exit(0)
+        except Exception as e:
+            print(f"Error processing command with CrewAI: {e}")
+            self.speak("Desculpe, ocorreu um erro ao processar o comando com o agente de IA.")
