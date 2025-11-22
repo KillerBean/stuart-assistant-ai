@@ -5,12 +5,12 @@ import wikipedia
 from gtts import gTTS
 from playsound import playsound
 import speech_recognition as sr
-from crewai import LLM
 from tmp_file_handler import TempFileHandler
 from command_handler import CommandHandler
 
 from stuart_ai.agents.web_search_agent import WebSearchAgent
 from stuart_ai.tools import AssistantTools
+from stuart_ai.LLM.ollama_llm import OllamaLLM
 
 
 class Assistant:
@@ -36,13 +36,7 @@ class Assistant:
             # Adicione mais apelidos aqui
         }
 
-        self.llm = LLM(
-            provider=os.getenv("LLM_PROVIDER", "ollama"),
-            host=os.getenv("LLM_HOST", "localhost"),
-            port=int(os.getenv("LLM_PORT", "11434")),
-            model=os.getenv("MODEL", "ollama/gemma3:latest"),
-            temperature=0.7
-        )
+        self.llm = OllamaLLM().get_llm_instance()
 
         self.web_search_agent = WebSearchAgent(llm=self.llm)
         self.assistant_tools = AssistantTools(

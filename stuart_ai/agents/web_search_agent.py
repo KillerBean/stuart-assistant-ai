@@ -3,6 +3,8 @@ from crewai import Agent, Task, Crew, LLM
 from crewai.tools import BaseTool
 from langchain_community.tools import DuckDuckGoSearchRun
 
+from stuart_ai.LLM.ollama_llm import OllamaLLM
+
 
 class DuckDuckGoSearchTool(BaseTool):
     name: str = "DuckDuckGo Search"
@@ -23,6 +25,7 @@ class WebSearchAgent:
             goal='Encontrar e sintetizar informações relevantes da web sobre um tópico específico.',
             backstory='É um pesquisador experiente, especialista em encontrar e analisar rapidamente informações online para fornecer insights concisos e precisos.',
             verbose=True,
+            llm=self.llm,
             allow_delegation=False,
             tools=[self.search_tool],
         )
@@ -48,12 +51,7 @@ class WebSearchAgent:
         return result
 
 if __name__ == '__main__':
-    llm = LLM(
-            provider=os.getenv("LLM_PROVIDER", "ollama"),
-            host=os.getenv("LLM_HOST", "localhost"),
-            port=int(os.getenv("LLM_PORT", "11434")),
-            model=os.getenv("MODEL", "ollama/gemma3:latest")
-        )
+    llm = OllamaLLM().get_llm_instance()
     # Instancia e executa o agente de busca
     web_search = WebSearchAgent(llm=llm)
     search_query = "Últimas notícias sobre inteligência artificial"

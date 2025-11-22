@@ -1,5 +1,6 @@
 from crewai import Agent, Task, Crew
 
+from stuart_ai.LLM.ollama_llm import OllamaLLM
 from stuart_ai.agents.web_search_agent import WebSearchAgent
 from stuart_ai.tools import AssistantTools
 
@@ -14,7 +15,7 @@ class CommandHandler:
         self.speak = speak_func
         self.confirm = confirmation_func
         self.app_aliases = app_aliases
-        
+        self.llm = OllamaLLM().get_llm_instance()
         self.assistant_tools = assistant_tools
         self.web_search_agent = web_search_agent 
 
