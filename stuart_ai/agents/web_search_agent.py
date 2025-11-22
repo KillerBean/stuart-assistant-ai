@@ -13,17 +13,11 @@ class DuckDuckGoSearchTool(BaseTool):
         return DuckDuckGoSearchRun().run(query)
 
 class WebSearchAgent:
-    def __init__(self, search_tool=None, llm=None):
+    def __init__(self, llm: LLM, search_tool=None) -> None:
         self.search_tool = search_tool if search_tool else DuckDuckGoSearchTool()
-        self.llm = llm if llm else LLM(
-            provider=os.getenv("LLM_PROVIDER", "ollama"),
-            host=os.getenv("LLM_HOST", "localhost"),
-            port=int(os.getenv("LLM_PORT", "11434")),
-            model=os.getenv("MODEL", "ollama/gemma3:latest"),
-            temperature=0.7
-        )
+        self.llm = llm
 
-    def create_web_search_agent(self):
+    def create_web_search_agent(self) -> Agent:
         return Agent(
             role='Pesquisador Web Sênior',
             goal='Encontrar e sintetizar informações relevantes da web sobre um tópico específico.',
@@ -33,14 +27,14 @@ class WebSearchAgent:
             tools=[self.search_tool],
         )
 
-    def create_web_search_task(self, agent, query):
+    def create_web_search_task(self, agent, query) -> Task:
         return Task(
             description=f"Pesquise a web por '{query}' e forneça um resumo conciso das informações mais importantes.",
             expected_output='Um resumo conciso e preciso das informações encontradas na web sobre o tópico da pesquisa.',
             agent=agent
         )
 
-    def run_search_crew(self, query):
+    def run_search_crew(self, query) -> str:
         agent = self.create_web_search_agent()
         task = self.create_web_search_task(agent, query)
 
@@ -50,7 +44,7 @@ class WebSearchAgent:
             verbose=True,
         )
 
-        result = crew.kickoff()
+        result = str(crew.kickoff())
         return result
 
 if __name__ == '__main__':
@@ -58,8 +52,7 @@ if __name__ == '__main__':
             provider=os.getenv("LLM_PROVIDER", "ollama"),
             host=os.getenv("LLM_HOST", "localhost"),
             port=int(os.getenv("LLM_PORT", "11434")),
-            model=os.getenv("MODEL", "ollama/gemma3:latest"),
-            temperature=0.7
+            model=os.getenv("MODEL", "ollama/gemma3:latest")
         )
     # Instancia e executa o agente de busca
     web_search = WebSearchAgent(llm=llm)
