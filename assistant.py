@@ -6,6 +6,7 @@ from gtts import gTTS
 import sounddevice as sd
 from playsound import playsound
 import speech_recognition as sr
+from crewai import LLM
 from tmp_file_handler import TempFileHandler
 from command_handler import CommandHandler
 
@@ -36,7 +37,15 @@ class Assistant:
             # Adicione mais apelidos aqui
         }
 
-        self.web_search_agent = WebSearchAgent()
+        self.llm = LLM(
+            provider=os.getenv("LLM_PROVIDER", "ollama"),
+            host=os.getenv("LLM_HOST", "localhost"),
+            port=int(os.getenv("LLM_PORT", "11434")),
+            model=os.getenv("MODEL", "ollama/gemma3:latest"),
+            temperature=0.7
+        )
+
+        self.web_search_agent = WebSearchAgent(llm=self.llm)
         self.assistant_tools = AssistantTools(
             speak_func=self.speak,
             confirmation_func=self.listen_for_confirmation,

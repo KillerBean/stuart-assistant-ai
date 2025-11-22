@@ -1,4 +1,5 @@
-from crewai import Agent, Task, Crew
+import os
+from crewai import Agent, Task, Crew, LLM
 from crewai.tools import BaseTool
 from langchain_community.tools import DuckDuckGoSearchRun
 
@@ -12,8 +13,15 @@ class DuckDuckGoSearchTool(BaseTool):
         return DuckDuckGoSearchRun().run(query)
 
 class WebSearchAgent:
-    def __init__(self, search_tool=None):
+    def __init__(self, search_tool=None, llm=None):
         self.search_tool = search_tool if search_tool else DuckDuckGoSearchTool()
+        self.llm = llm if llm else LLM(
+            provider=os.getenv("LLM_PROVIDER", "ollama"),
+            host=os.getenv("LLM_HOST", "localhost"),
+            port=int(os.getenv("LLM_PORT", "11434")),
+            model=os.getenv("MODEL", "ollama/gemma3:latest"),
+            temperature=0.7
+        )
 
     def create_web_search_agent(self):
         return Agent(
@@ -46,9 +54,15 @@ class WebSearchAgent:
         return result
 
 if __name__ == '__main__':
-    
+    llm = LLM(
+            provider=os.getenv("LLM_PROVIDER", "ollama"),
+            host=os.getenv("LLM_HOST", "localhost"),
+            port=int(os.getenv("LLM_PORT", "11434")),
+            model=os.getenv("MODEL", "ollama/gemma3:latest"),
+            temperature=0.7
+        )
     # Instancia e executa o agente de busca
-    web_search = WebSearchAgent()
+    web_search = WebSearchAgent(llm=llm)
     search_query = "Últimas notícias sobre inteligência artificial"
     print(f"Iniciando pesquisa para: {search_query}")
     result = web_search.run_search_crew(search_query)
