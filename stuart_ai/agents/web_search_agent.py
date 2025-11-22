@@ -46,10 +46,6 @@ class WebSearchAgent:
         return result
 
 if __name__ == '__main__':
-    import os
-    # Configura as variáveis de ambiente para usar o modelo Ollama local com CrewAI/LiteLLM
-    #os.environ["OLLAMA_API_BASE"] = "http://localhost:11434"
-    #os.environ["MODEL"] = "ollama/gemma3:latest"
     
     # Instancia e executa o agente de busca
     web_search = WebSearchAgent()
