@@ -1,11 +1,19 @@
 from crewai import Agent, Task, Crew
+from crewai.tools import BaseTool
 from langchain_community.tools import DuckDuckGoSearchRun
-from langchain_core.language_models import BaseLanguageModel
+
+
+class DuckDuckGoSearchTool(BaseTool):
+    name: str = "DuckDuckGo Search"
+    description: str = "A tool that can be used to search DuckDuckGo for a given query."
+    
+    def _run(self, query: str) -> str:
+        """Use the tool."""
+        return DuckDuckGoSearchRun().run(query)
 
 class WebSearchAgent:
-    def __init__(self, llm: BaseLanguageModel, search_tool=None):
-        self.llm = llm
-        self.search_tool = search_tool if search_tool else DuckDuckGoSearchRun()
+    def __init__(self, search_tool=None):
+        self.search_tool = search_tool if search_tool else DuckDuckGoSearchTool()
 
     def create_web_search_agent(self):
         return Agent(
@@ -15,7 +23,6 @@ class WebSearchAgent:
             verbose=True,
             allow_delegation=False,
             tools=[self.search_tool],
-            llm=self.llm  # Pass the LLM here
         )
 
     def create_web_search_task(self, agent, query):
@@ -32,23 +39,22 @@ class WebSearchAgent:
         crew = Crew(
             agents=[agent],
             tasks=[task],
-            verbose=True
+            verbose=True,
         )
 
         result = crew.kickoff()
         return result
 
 if __name__ == '__main__':
-    # Example usage - NOTE: A real LLM instance would be needed here for actual execution
-    # For demonstration, we'll use a placeholder.
-    from langchain_community.chat_models import ChatOllama # Example LLM
-
-    # This part would typically be handled by your main application's setup
-    example_llm = ChatOllama(model="gemma3") # Or any other LLM
-
-    web_search = WebSearchAgent(llm=example_llm)
+    import os
+    # Configura as variáveis de ambiente para usar o modelo Ollama local com CrewAI/LiteLLM
+    #os.environ["OLLAMA_API_BASE"] = "http://localhost:11434"
+    #os.environ["MODEL"] = "ollama/gemma3:latest"
+    
+    # Instancia e executa o agente de busca
+    web_search = WebSearchAgent()
     search_query = "Últimas notícias sobre inteligência artificial"
     print(f"Iniciando pesquisa para: {search_query}")
-    # result = web_search.run_search_crew(search_query) # Uncomment to run with a real LLM
-    # print("\n--- Resultado da Pesquisa ---")
-    # print(result)
+    result = web_search.run_search_crew(search_query)
+    print("\n--- Resultado da Pesquisa ---")
+    print(result)

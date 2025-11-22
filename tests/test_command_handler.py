@@ -17,7 +17,6 @@ def command_handler_fixture(mocker):
 
     mock_speak_func = mocker.MagicMock()
     mock_confirm_func = mocker.MagicMock()
-    mock_llm = mocker.MagicMock()
     
     mock_assistant_tools = mocker.MagicMock(spec=AssistantTools)
     mock_assistant_tools._get_time = mocker.MagicMock()
@@ -38,7 +37,6 @@ def command_handler_fixture(mocker):
         speak_func=mock_speak_func,
         confirmation_func=mock_confirm_func,
         app_aliases=app_aliases,
-        llm=mock_llm,
         assistant_tools=mock_assistant_tools,
         web_search_agent=mock_web_search_agent
     )

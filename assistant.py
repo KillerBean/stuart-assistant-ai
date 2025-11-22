@@ -9,7 +9,6 @@ import speech_recognition as sr
 from tmp_file_handler import TempFileHandler
 from command_handler import CommandHandler
 
-from langchain_community.chat_models import ChatOllama
 from stuart_ai.agents.web_search_agent import WebSearchAgent
 from stuart_ai.tools import AssistantTools
 
@@ -37,17 +36,7 @@ class Assistant:
             # Adicione mais apelidos aqui
         }
 
-        try:
-            self.llm = ChatOllama(model="gemma3")
-        except Exception as e:
-            print("\n---")
-            print("ERROR: Could not initialize Ollama.")
-            print("Please make sure Ollama is running and the 'gemma3' model is available.")
-            print(f"Error details: {e}")
-            print("---\n")
-            raise
-
-        self.web_search_agent = WebSearchAgent(llm=self.llm)
+        self.web_search_agent = WebSearchAgent()
         self.assistant_tools = AssistantTools(
             speak_func=self.speak,
             confirmation_func=self.listen_for_confirmation,
@@ -59,7 +48,6 @@ class Assistant:
             self.speak,
             self.listen_for_confirmation,
             self.app_aliases,
-            self.llm,
             self.assistant_tools,
             self.web_search_agent
         )

@@ -1,4 +1,3 @@
-from langchain_community.chat_models import ChatOllama
 from crewai import Agent, Task, Crew
 
 from stuart_ai.agents.web_search_agent import WebSearchAgent
@@ -11,12 +10,11 @@ class CommandHandler:
     """
 
     def __init__(self, speak_func, confirmation_func, app_aliases, 
-                 llm, assistant_tools: AssistantTools, web_search_agent: WebSearchAgent):
+                 assistant_tools: AssistantTools, web_search_agent: WebSearchAgent):
         self.speak = speak_func
         self.confirm = confirmation_func
         self.app_aliases = app_aliases
         
-        self.llm = llm
         self.assistant_tools = assistant_tools
         self.web_search_agent = web_search_agent 
 
@@ -36,7 +34,6 @@ class CommandHandler:
             role="Router de Comandos Inteligente",
             goal="Analisar o comando do usuário, entender a intenção e selecionar a ferramenta apropriada para executá-lo. Extraia todos os argumentos necessários para a ferramenta a partir do comando do usuário. Se nenhum comando corresponder, informe ao usuário que você não entendeu.",
             backstory="Você é um assistente de IA eficiente, especialista em entender a linguagem natural e encaminhar solicitações para a função apropriada. Você é preciso e direto.",
-            llm=self.llm,
             tools=tools,
             allow_delegation=False,
             verbose=True
