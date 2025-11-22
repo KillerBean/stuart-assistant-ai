@@ -3,7 +3,6 @@ import uuid
 import whisper
 import wikipedia
 from gtts import gTTS
-import sounddevice as sd
 from playsound import playsound
 import speech_recognition as sr
 from crewai import LLM
