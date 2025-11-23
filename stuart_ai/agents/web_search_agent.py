@@ -50,12 +50,26 @@ class WebSearchAgent:
         result = str(crew.kickoff())
         return result
 
-if __name__ == '__main__':
+def main():
+    import argparse
+
+    # Configura o parser de argumentos
+    parser = argparse.ArgumentParser(description="Executa uma pesquisa na web usando o WebSearchAgent.")
+    parser.add_argument("query", type=str, help="O texto a ser pesquisado.")
+    args = parser.parse_args()
+
+    # Instancia o LLM
     llm = OllamaLLM().get_llm_instance()
-    # Instancia e executa o agente de busca
+    
+    # Instancia e executa o agente de busca com a query da linha de comando
     web_search = WebSearchAgent(llm=llm)
-    search_query = "Últimas notícias sobre inteligência artificial"
-    print(f"Iniciando pesquisa para: {search_query}")
+    search_query = args.query
+    
+    print(f"Iniciando pesquisa para: '{search_query}'")
     result = web_search.run_search_crew(search_query)
+    
     print("\n--- Resultado da Pesquisa ---")
     print(result)
+
+if __name__ == '__main__':
+    main()

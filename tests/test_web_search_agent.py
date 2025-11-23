@@ -150,3 +150,55 @@ def test_duckduckgo_search_tool_run(mocker):
     
     # Verifica se o resultado retornado é o esperado
     assert result == expected_result
+
+from stuart_ai.agents.web_search_agent import main as web_search_main
+
+def test_main(mocker):
+    """
+    Testa a função main (ponto de entrada do script) para verificar a orquestração correta.
+    """
+    # Mock de argparse para simular argumentos de linha de comando
+    test_query = "qual a capital da França"
+    mock_args = mocker.MagicMock()
+    mock_args.query = test_query
+    mock_argparse = mocker.patch('argparse.ArgumentParser')
+    mock_argparse.return_value.parse_args.return_value = mock_args
+
+    # Mock das dependências externas
+    mock_llm_instance = mocker.MagicMock()
+    mock_ollama_llm_class = mocker.patch('stuart_ai.agents.web_search_agent.OllamaLLM')
+    mock_ollama_llm_class.return_value.get_llm_instance.return_value = mock_llm_instance
+
+    mock_web_search_agent_class = mocker.patch('stuart_ai.agents.web_search_agent.WebSearchAgent')
+    mock_agent_instance = mocker.MagicMock()
+    search_result = "Paris"
+    mock_agent_instance.run_search_crew.return_value = search_result
+    mock_web_search_agent_class.return_value = mock_agent_instance
+
+    # Mock do print para capturar saídas
+    mock_print = mocker.patch('builtins.print')
+
+    # Chama a função main
+    web_search_main()
+
+    # Asserções
+    # Verifica se o parser de argumentos foi configurado corretamente
+    mock_argparse.assert_called_once_with(description="Executa uma pesquisa na web usando o WebSearchAgent.")
+    mock_argparse.return_value.add_argument.assert_called_once_with("query", type=str, help="O texto a ser pesquisado.")
+    mock_argparse.return_value.parse_args.assert_called_once()
+
+    # Verifica se o LLM foi instanciado
+    mock_ollama_llm_class.assert_called_once()
+    mock_ollama_llm_class.return_value.get_llm_instance.assert_called_once()
+
+    # Verifica se o WebSearchAgent foi instanciado com o LLM correto
+    mock_web_search_agent_class.assert_called_once_with(llm=mock_llm_instance)
+
+    # Verifica se a busca foi executada com a query correta
+    mock_agent_instance.run_search_crew.assert_called_once_with(test_query)
+
+    # Verifica se os prints foram chamados com as mensagens esperadas
+    assert mock_print.call_count == 3
+    mock_print.assert_any_call(f"Iniciando pesquisa para: '{test_query}'")
+    mock_print.assert_any_call("\n--- Resultado da Pesquisa ---")
+    mock_print.assert_any_call(search_result)
