@@ -1,5 +1,7 @@
 import pytest
+from stuart_ai.LLM.ollama_llm import OllamaLLM
 from stuart_ai.agents.web_search_agent import WebSearchAgent, DuckDuckGoSearchTool
+from langchain_community.tools import DuckDuckGoSearchRun
 
 @pytest.fixture
 def web_search_agent_fixture(mocker):
@@ -13,33 +15,51 @@ def web_search_agent_fixture(mocker):
     mock_crew_class = mocker.patch('stuart_ai.agents.web_search_agent.Crew')
 
     mock_search_tool = mocker.MagicMock(spec=DuckDuckGoSearchTool)
+    mock_llm = mocker.MagicMock(spec=OllamaLLM)
     
-    web_agent = WebSearchAgent(search_tool=mock_search_tool)
+    web_agent = WebSearchAgent(search_tool=mock_search_tool, llm=mock_llm)
     
     # Retorna também as classes mockadas para uso nos asserts dos testes
-    return web_agent, mock_search_tool, mock_agent_class, mock_task_class, mock_crew_class
+    return web_agent, mock_search_tool, mock_llm, mock_agent_class, mock_task_class, mock_crew_class
 
-def test_init(web_search_agent_fixture, mocker):
+def test_init_with_provided_dependencies(web_search_agent_fixture):
     """
-    Testa se o __init__ do WebSearchAgent inicializa corretamente o search_tool.
+    Testa se o __init__ do WebSearchAgent inicializa corretamente as dependências injetadas.
     """
-    web_agent, mock_search_tool, _, _, _ = web_search_agent_fixture
+    web_agent, mock_search_tool, mock_llm, _, _, _ = web_search_agent_fixture
     
     assert web_agent.search_tool == mock_search_tool
+    assert web_agent.llm == mock_llm
 
-    # Testa o caso padrão para search_tool
-    # Aqui, patchamos DuckDuckGoSearchTool localmente para testar seu comportamento padrão.
-    mock_duckduckgo_search_tool = mocker.patch('stuart_ai.agents.web_search_agent.DuckDuckGoSearchTool')
+def test_init_with_default_dependencies(mocker):
+    """
+    Testa se o __init__ do WebSearchAgent inicializa corretamente as dependências padrão.
+    """
+    # Patch das classes para observar se são instanciadas
+    mock_duckduckgo_search_tool_class = mocker.patch('stuart_ai.agents.web_search_agent.DuckDuckGoSearchTool')
+    mock_ollama_llm_class = mocker.patch('stuart_ai.agents.web_search_agent.OllamaLLM')
+
+    # Configura o mock para a chamada encadeada: OllamaLLM().get_llm_instance()
+    mock_llm_instance = mocker.MagicMock()
+    mock_ollama_llm_class.return_value.get_llm_instance.return_value = mock_llm_instance
+    
+    # Instancia sem passar dependências
     default_web_agent = WebSearchAgent()
-    assert default_web_agent.search_tool == mock_duckduckgo_search_tool.return_value
-    mock_duckduckgo_search_tool.assert_called_once()
+    
+    # Verifica se as classes foram instanciadas
+    mock_duckduckgo_search_tool_class.assert_called_once()
+    mock_ollama_llm_class.assert_called_once()
+    mock_ollama_llm_class.return_value.get_llm_instance.assert_called_once()
 
+    # Verifica se as instâncias criadas foram atribuídas
+    assert default_web_agent.search_tool == mock_duckduckgo_search_tool_class.return_value
+    assert default_web_agent.llm == mock_llm_instance
 
 def test_create_web_search_agent(web_search_agent_fixture):
     """
     Testa se create_web_search_agent chama crewai.Agent com os parâmetros corretos.
     """
-    web_agent, mock_search_tool, mock_crewai_agent_class, _, _ = web_search_agent_fixture
+    web_agent, mock_search_tool, mock_llm, mock_crewai_agent_class, _, _ = web_search_agent_fixture
     
     created_agent = web_agent.create_web_search_agent()
     
@@ -49,7 +69,8 @@ def test_create_web_search_agent(web_search_agent_fixture):
         backstory='É um pesquisador experiente, especialista em encontrar e analisar rapidamente informações online para fornecer insights concisos e precisos.',
         verbose=True,
         allow_delegation=False,
-        tools=[mock_search_tool]
+        tools=[mock_search_tool],
+        llm=mock_llm
     )
     assert created_agent == mock_crewai_agent_class.return_value # Verifica se retornou a instância do mock
 
@@ -57,7 +78,7 @@ def test_create_web_search_task(web_search_agent_fixture, mocker):
     """
     Testa se create_web_search_task chama crewai.Task com os parâmetros corretos.
     """
-    web_agent, _, mock_crewai_agent_class, mock_crewai_task_class, _ = web_search_agent_fixture
+    web_agent, _, _, _, mock_crewai_task_class, _ = web_search_agent_fixture
     
     mock_agent_instance = mocker.MagicMock() # Mock de uma instância de agente
     query = "test query"
@@ -75,7 +96,7 @@ def test_run_search_crew(web_search_agent_fixture, mocker):
     """
     Testa o método run_search_crew para verificar a orquestração correta.
     """
-    web_agent, _, _, _, mock_crewai_crew_class = web_search_agent_fixture
+    web_agent, _, _, _, _, mock_crewai_crew_class = web_search_agent_fixture
     
     mock_created_agent = mocker.MagicMock()
     mock_created_task = mocker.MagicMock()
@@ -100,3 +121,32 @@ def test_run_search_crew(web_search_agent_fixture, mocker):
     )
     mock_crew_instance.kickoff.assert_called_once()
     assert result == "Resultado da pesquisa do Crew"
+
+def test_duckduckgo_search_tool_run(mocker):
+    """
+    Testa o método _run da DuckDuckGoSearchTool para verificar a integração com DuckDuckGoSearchRun.
+    """
+    # Mock da classe DuckDuckGoSearchRun
+    mock_duckduckgo_search_run_class = mocker.patch('stuart_ai.agents.web_search_agent.DuckDuckGoSearchRun')
+    
+    # Configura o retorno do método run da instância mockada
+    expected_result = "Resultado da pesquisa DuckDuckGo"
+    mock_duckduckgo_search_run_class.return_value.run.return_value = expected_result
+    
+    # Instancia a DuckDuckGoSearchTool
+    tool = DuckDuckGoSearchTool()
+    
+    # Define a query
+    query = "test query for duckduckgo"
+    
+    # Chama o método _run
+    result = tool._run(query)
+    
+    # Verifica se DuckDuckGoSearchRun foi instanciado
+    mock_duckduckgo_search_run_class.assert_called_once()
+    
+    # Verifica se o método run da instância foi chamado com a query correta
+    mock_duckduckgo_search_run_class.return_value.run.assert_called_once_with(query)
+    
+    # Verifica se o resultado retornado é o esperado
+    assert result == expected_result

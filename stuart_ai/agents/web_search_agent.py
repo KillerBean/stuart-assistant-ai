@@ -15,9 +15,9 @@ class DuckDuckGoSearchTool(BaseTool):
         return DuckDuckGoSearchRun().run(query)
 
 class WebSearchAgent:
-    def __init__(self, llm: LLM, search_tool=None) -> None:
-        self.search_tool = search_tool if search_tool else DuckDuckGoSearchTool()
-        self.llm = llm
+    def __init__(self, llm: LLM | None = None, search_tool: BaseTool | None = None) -> None:
+        self.search_tool = search_tool or DuckDuckGoSearchTool()
+        self.llm = llm or OllamaLLM().get_llm_instance()
 
     def create_web_search_agent(self) -> Agent:
         return Agent(
