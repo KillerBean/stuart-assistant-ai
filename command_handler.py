@@ -2,7 +2,7 @@ from crewai import Agent, Task, Crew
 
 from stuart_ai.LLM.ollama_llm import OllamaLLM
 from stuart_ai.agents.web_search_agent import WebSearchAgent
-from stuart_ai.tools import AssistantTools
+from stuart_ai.tools import AssistantTools # Keep this import
 
 
 class CommandHandler:
@@ -10,14 +10,19 @@ class CommandHandler:
     Handles the processing of user commands using an LLM-based intent recognition system.
     """
 
-    def __init__(self, speak_func, confirmation_func, app_aliases, 
-                 assistant_tools: AssistantTools, web_search_agent: WebSearchAgent):
+    def __init__(self, speak_func, confirmation_func, app_aliases, web_search_agent: WebSearchAgent): # Removed assistant_tools from params
         self.speak = speak_func
         self.confirm = confirmation_func
         self.app_aliases = app_aliases
         self.llm = OllamaLLM().get_llm_instance()
-        self.assistant_tools = assistant_tools
         self.web_search_agent = web_search_agent 
+
+        self.assistant_tools = AssistantTools(
+            speak_func=self.speak,
+            confirmation_func=self.confirm,
+            app_aliases=self.app_aliases,
+            web_search_agent=self.web_search_agent
+        )
 
         tools = [
             self.assistant_tools._get_time,

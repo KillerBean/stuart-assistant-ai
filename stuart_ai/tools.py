@@ -5,7 +5,7 @@ from datetime import datetime
 import requests
 import wikipedia
 
-from langchain.tools import tool
+from crewai.tools import tool
 from stuart_ai.agents.web_search_agent import WebSearchAgent
 
 

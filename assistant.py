@@ -1,5 +1,7 @@
 import os
 import uuid
+import platform
+import subprocess
 import whisper
 import wikipedia
 from gtts import gTTS
@@ -50,7 +52,6 @@ class Assistant:
             self.speak,
             self.listen_for_confirmation,
             self.app_aliases,
-            self.assistant_tools,
             self.web_search_agent
         )
 
@@ -58,21 +59,40 @@ class Assistant:
         """
         Converts text to speech and plays it.
         """
+        temp_audio_file = f"tmp/response_{uuid.uuid4()}.mp3"
         try:
             print(f"Assistant: {text}")
             tts = gTTS(text=text, lang='pt-br')
 
-            temp_audio_file = f"tmp/response_{uuid.uuid4()}.mp3"
-            
             dir_name = os.path.dirname(temp_audio_file)
             if not os.path.exists(dir_name):
                 os.makedirs(dir_name)
 
             tts.save(temp_audio_file)
-            playsound(temp_audio_file)
-            os.remove(temp_audio_file)
+
+            system = platform.system()
+            if system == "Linux":
+                try:
+                    # Use mpg123 on Linux, as playsound can be problematic
+                    subprocess.run(
+                        ["mpg123", temp_audio_file], 
+                        check=True, 
+                        stdout=subprocess.DEVNULL, 
+                        stderr=subprocess.DEVNULL
+                    )
+                except (FileNotFoundError, subprocess.CalledProcessError):
+                    # Fallback to playsound if mpg123 is not available or fails
+                    print("mpg123 not found or failed, falling back to playsound...")
+                    playsound(temp_audio_file)
+            else:
+                # Use playsound for other systems (Windows, Darwin)
+                playsound(temp_audio_file)
+
         except Exception as e:
             print(f"Error in text-to-speech: {e}")
+        finally:
+            if os.path.exists(temp_audio_file):
+                os.remove(temp_audio_file)
 
     def listen_for_confirmation(self, prompt: str) -> bool:
         """Asks a confirmation question and listens for a 'yes' or 'no' answer."""
@@ -86,9 +106,10 @@ class Assistant:
 
                 with TempFileHandler(self.temp_file_path) as temp_file:
                     with open(temp_file, "wb") as f:
-                        # If audio is a generator, get the AudioData object
                         if hasattr(audio, '__iter__') and not isinstance(audio, sr.AudioData):
                             audio = next(audio)
+                            f.write(audio.get_wav_data())
+                        elif isinstance(audio, sr.AudioData):
                             f.write(audio.get_wav_data())
                     
                     result = self.model.transcribe(temp_file, language="pt", fp16=False)
@@ -128,9 +149,10 @@ class Assistant:
                     
                     with TempFileHandler(self.temp_file_path) as temp_file:
                         with open(temp_file, "wb") as f:
-                            # If audio is a generator, get the AudioData object
                             if hasattr(audio, '__iter__') and not isinstance(audio, sr.AudioData):
                                 audio = next(audio)
+                                f.write(audio.get_wav_data())
+                            elif isinstance(audio, sr.AudioData):
                                 f.write(audio.get_wav_data())
                         
                         # Transcribe using Whisper
