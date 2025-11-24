@@ -5,7 +5,6 @@ from datetime import datetime
 import requests
 import wikipedia
 
-from crewai.tools import tool
 from stuart_ai.agents.web_search_agent import WebSearchAgent
 
 
@@ -21,13 +20,11 @@ class AssistantTools:
         self.app_aliases = app_aliases
         self.web_search_agent = web_search_agent
 
-    @tool
     def _get_time(self) -> str:
         """Retorna a hora e os minutos atuais. Use esta ferramenta sempre que o usuário perguntar as horas."""
         now = datetime.now().strftime("%H:%M")
         return f"São {now}."
 
-    @tool
     def _tell_joke(self) -> str:
         """Conta uma piada aleatória em português. Use quando o usuário pedir para contar uma piada."""
         try:
@@ -40,7 +37,6 @@ class AssistantTools:
             print(f"Error fetching joke from API: {e}")
             return "Desculpe, não consegui buscar uma piada agora."
 
-    @tool
     def _search_wikipedia(self, search_term: str) -> str:
         """Pesquisa um termo na Wikipedia e retorna um resumo. Use para perguntas sobre 'o que é' ou 'pesquise sobre'."""
         if not search_term:
@@ -57,7 +53,6 @@ class AssistantTools:
             print(f"Error searching Wikipedia for '{search_term}': {e}")
             return "Desculpe, ocorreu um erro ao pesquisar no Wikipedia."
 
-    @tool
     def _get_weather(self, city: str) -> str:
         """Obtém a previsão do tempo para uma cidade específica."""
         if not city:
@@ -71,7 +66,6 @@ class AssistantTools:
         except requests.exceptions.RequestException:
             return f"Desculpe, não consegui obter a previsão do tempo para {city}."
 
-    @tool
     def _open_app(self, app_name: str) -> str:
         """Abre ou inicia um programa no computador. Use para comandos como 'abra o chrome' ou 'inicie o vscode'."""
         spoken_name = app_name.strip()
@@ -98,7 +92,6 @@ class AssistantTools:
             print(f"Error opening application: {e}")
             return f"Ocorreu um erro ao tentar abrir o {spoken_name}."
 
-    @tool
     def _shutdown_computer(self) -> str:
         """Desliga o computador após uma confirmação do usuário."""
         if self.confirm("Você tem certeza que deseja desligar o computador?"):
@@ -115,7 +108,6 @@ class AssistantTools:
         else:
             return "Ação de desligamento cancelada."
 
-    @tool
     def _cancel_shutdown(self) -> str:
         """Cancela um desligamento do computador agendado."""
         system = platform.system()
@@ -129,7 +121,6 @@ class AssistantTools:
             print(f"Error trying to cancel shutdown: {e}")
             return "Ocorreu um erro ao tentar cancelar o comando de desligamento."
 
-    @tool
     def _perform_web_search(self, search_query: str) -> str:
         """Pesquisa na web usando um agente de IA para encontrar informações sobre um tópico. Use para pesquisas complexas ou quando a Wikipedia não for suficiente."""
         if not search_query:
@@ -143,7 +134,6 @@ class AssistantTools:
             print(f"Error performing web search for '{search_query}': {e}")
             return "Desculpe, ocorreu um erro ao realizar a pesquisa na web."
 
-    @tool
     def _quit(self) -> str:
         """Encerra o assistente. Use quando o usuário disser 'sair', 'encerrar' ou 'tchau'."""
         self.speak("Encerrando a assistente. Até logo!")
