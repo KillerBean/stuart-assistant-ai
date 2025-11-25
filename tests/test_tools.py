@@ -5,6 +5,8 @@ import wikipedia
 
 from stuart_ai.tools import AssistantTools
 from stuart_ai.agents.web_search_agent import WebSearchAgent
+from stuart_ai.enums import AssistantSignal
+
 
 @pytest.fixture
 def assistant_tools_fixture(mocker):
@@ -41,7 +43,7 @@ def test_get_time(assistant_tools_fixture, mocker):
     mock_datetime = mocker.patch('stuart_ai.tools.datetime')
     mock_datetime.now.return_value = fixed_time
     
-    result = tools._get_time.func(tools)
+    result = tools._get_time()
     
     assert result == "São 14:45."
     mock_datetime.now.assert_called_once()
@@ -59,7 +61,7 @@ def test_tell_joke_success(assistant_tools_fixture, mocker):
     mock_response.raise_for_status.return_value = None # Não levanta exceção
     mock_get = mocker.patch('stuart_ai.tools.requests.get', return_value=mock_response)
     
-    result = tools._tell_joke.func(tools)
+    result = tools._tell_joke()
     assert result == "Qual é o cúmulo da sorte? Ser atropelado por uma ambulância."
     mock_get.assert_called_once()
 
@@ -69,7 +71,7 @@ def test_tell_joke_api_error(assistant_tools_fixture, mocker):
     # Mock requests.get para simular um erro de API
     mocker.patch('stuart_ai.tools.requests.get', side_effect=requests.exceptions.RequestException("API down"))
     
-    result = tools._tell_joke.func(tools)
+    result = tools._tell_joke()
     assert result == "Desculpe, não consegui buscar uma piada agora."
 
 # Test for _search_wikipedia
@@ -80,7 +82,7 @@ def test_search_wikipedia_success(assistant_tools_fixture, mocker):
     mock_summary = mocker.patch('stuart_ai.tools.wikipedia.summary', return_value="Python é uma linguagem de programação.")
     mock_set_lang = mocker.patch('stuart_ai.tools.wikipedia.set_lang') # Também mockamos set_lang
     
-    result = tools._search_wikipedia.func(tools, "Python")
+    result = tools._search_wikipedia("Python")
     
     mock_set_lang.assert_called_once_with("pt")
     mock_summary.assert_called_once_with("Python", sentences=2)
@@ -93,12 +95,12 @@ def test_search_wikipedia_page_error(assistant_tools_fixture, mocker):
     mocker.patch('stuart_ai.tools.wikipedia.summary', side_effect=wikipedia.exceptions.PageError("page not found"))
     mocker.patch('stuart_ai.tools.wikipedia.set_lang')
     
-    result = tools._search_wikipedia.func(tools, "TermoInexistente")
+    result = tools._search_wikipedia("TermoInexistente")
     assert result == "Desculpe, não encontrei nenhum resultado para TermoInexistente."
 
 def test_search_wikipedia_no_term(assistant_tools_fixture):
     tools, _, _, _ = assistant_tools_fixture
-    result = tools._search_wikipedia.func(tools, "")
+    result = tools._search_wikipedia("")
     assert result == "Claro, o que você gostaria que eu pesquisasse?"
 
 def test_search_wikipedia_exception(assistant_tools_fixture, mocker):
@@ -108,7 +110,7 @@ def test_search_wikipedia_exception(assistant_tools_fixture, mocker):
     mocker.patch('stuart_ai.tools.wikipedia.summary', side_effect=Exception("Erro desconhecido"))
     mocker.patch('stuart_ai.tools.wikipedia.set_lang')
     
-    result = tools._search_wikipedia.func(tools, "Python")
+    result = tools._search_wikipedia("Python")
     assert result == "Desculpe, ocorreu um erro ao pesquisar no Wikipedia."
 
 def test_search_wikipedia_disambiguation_error(assistant_tools_fixture, mocker):
@@ -118,7 +120,7 @@ def test_search_wikipedia_disambiguation_error(assistant_tools_fixture, mocker):
     mocker.patch('stuart_ai.tools.wikipedia.summary', side_effect=wikipedia.exceptions.DisambiguationError("vago", []))
     mocker.patch('stuart_ai.tools.wikipedia.set_lang')
     
-    result = tools._search_wikipedia.func(tools, "TermoVago")
+    result = tools._search_wikipedia("TermoVago")
     assert result == "O termo TermoVago é muito vago. Por favor, seja mais específico."
 
 def test_get_weather_success(assistant_tools_fixture, mocker):
@@ -130,14 +132,14 @@ def test_get_weather_success(assistant_tools_fixture, mocker):
     mock_response.raise_for_status.return_value = None # Não levanta exceção
     mock_get = mocker.patch('stuart_ai.tools.requests.get', return_value=mock_response)
     
-    result = tools._get_weather.func(tools, city)
+    result = tools._get_weather(city)
     
     assert result == weather_info
     mock_get.assert_called_once_with(f"https://wttr.in/{city}?format=3")
 
 def test_get_weather_no_city(assistant_tools_fixture):
     tools, _, _, _ = assistant_tools_fixture
-    result = tools._get_weather.func(tools, "")
+    result = tools._get_weather("")
     assert result == "Claro, para qual cidade você gostaria da previsão do tempo?"
 
 def test_get_weather_request_exception(assistant_tools_fixture, mocker):
@@ -145,9 +147,18 @@ def test_get_weather_request_exception(assistant_tools_fixture, mocker):
     city = "CidadeInexistente"
     mocker.patch('stuart_ai.tools.requests.get', side_effect=requests.exceptions.RequestException("Erro de rede"))
     
-    result = tools._get_weather.func(tools, city)
+    result = tools._get_weather(city)
     
     assert result == f"Desculpe, não consegui obter a previsão do tempo para {city}."
+
+def test_get_weather_generic_exception(assistant_tools_fixture, mocker):
+    tools, _, _, _ = assistant_tools_fixture
+    city = "CidadeQualquer"
+    mocker.patch('stuart_ai.tools.requests.get', side_effect=Exception("Erro genérico"))
+    
+    result = tools._get_weather(city)
+    
+    assert result == "Desculpe, ocorreu um erro ao obter a previsão do tempo."
 
 # Test for _open_app
 @pytest.mark.parametrize("system, app_name, expected_call, expected_kwargs", [
@@ -163,7 +174,7 @@ def test_open_app(assistant_tools_fixture, mocker, system, app_name, expected_ca
     mocker.patch('stuart_ai.tools.platform.system', return_value=system)
     mock_popen = mocker.patch('stuart_ai.tools.subprocess.Popen')
     
-    result = tools._open_app.func(tools, app_name)
+    result = tools._open_app(app_name)
     
     assert result == f"Abrindo {app_name}."
     
@@ -171,7 +182,7 @@ def test_open_app(assistant_tools_fixture, mocker, system, app_name, expected_ca
 
 def test_open_app_no_name(assistant_tools_fixture):
     tools, _, _, _ = assistant_tools_fixture
-    result = tools._open_app.func(tools, "")
+    result = tools._open_app("")
     assert result == "Claro, qual programa você gostaria de abrir?"
 
 def test_open_app_file_not_found(assistant_tools_fixture, mocker):
@@ -180,7 +191,7 @@ def test_open_app_file_not_found(assistant_tools_fixture, mocker):
     mocker.patch('stuart_ai.tools.platform.system', return_value="Linux")
     mock_popen = mocker.patch('stuart_ai.tools.subprocess.Popen', side_effect=FileNotFoundError())
     
-    result = tools._open_app.func(tools, "programaInexistente")
+    result = tools._open_app("programaInexistente")
     
     assert result == "Desculpe, não consegui encontrar o programa programaInexistente."
     mock_popen.assert_called_once()
@@ -191,7 +202,7 @@ def test_open_app_other_exception(assistant_tools_fixture, mocker):
     mocker.patch('stuart_ai.tools.platform.system', return_value="Linux")
     mock_popen = mocker.patch('stuart_ai.tools.subprocess.Popen', side_effect=Exception("Erro desconhecido"))
     
-    result = tools._open_app.func(tools, "programaComErro")
+    result = tools._open_app("programaComErro")
     
     assert result == "Ocorreu um erro ao tentar abrir o programaComErro."
     mock_popen.assert_called_once()
@@ -203,7 +214,7 @@ def test_shutdown_computer_confirmed_on_unix(assistant_tools_fixture, mocker):
     mock_run = mocker.patch('stuart_ai.tools.subprocess.run')
     mocker.patch('stuart_ai.tools.platform.system', return_value="Linux")
     
-    result = tools._shutdown_computer.func(tools)
+    result = tools._shutdown_computer()
     
     mock_confirm.assert_called_once()
     mock_run.assert_called_once_with(["shutdown", "-h", "+1"])
@@ -216,7 +227,7 @@ def test_shutdown_computer_confirmed_on_windows(assistant_tools_fixture, mocker)
     mock_run = mocker.patch('stuart_ai.tools.subprocess.run')
     mocker.patch('stuart_ai.tools.platform.system', return_value="Windows")
     
-    result = tools._shutdown_computer.func(tools)
+    result = tools._shutdown_computer()
     
     mock_confirm.assert_called_once()
     mock_run.assert_called_once_with(["shutdown", "/s", "/t", "60"])
@@ -228,7 +239,7 @@ def test_shutdown_computer_not_confirmed(assistant_tools_fixture, mocker):
     mock_confirm.return_value = False # Simula o cancelamento do usuário
     mock_run = mocker.patch('stuart_ai.tools.subprocess.run')
     
-    result = tools._shutdown_computer.func(tools)
+    result = tools._shutdown_computer()
     
     mock_confirm.assert_called_once()
     mock_run.assert_not_called()
@@ -241,7 +252,7 @@ def test_shutdown_computer_exception_on_windows(assistant_tools_fixture, mocker)
     mock_run = mocker.patch('stuart_ai.tools.subprocess.run', side_effect=Exception("Erro desconhecido"))
     mocker.patch('stuart_ai.tools.platform.system', return_value="Windows")
     
-    result = tools._shutdown_computer.func(tools)
+    result = tools._shutdown_computer()
     
     mock_confirm.assert_called_once()
     mock_run.assert_called_once_with(["shutdown", "/s", "/t", "60"])
@@ -254,7 +265,7 @@ def test_shutdown_computer_exception_on_unix(assistant_tools_fixture, mocker):
     mock_run = mocker.patch('stuart_ai.tools.subprocess.run', side_effect=Exception("Erro desconhecido"))
     mocker.patch('stuart_ai.tools.platform.system', return_value="Linux")
     
-    result = tools._shutdown_computer.func(tools)
+    result = tools._shutdown_computer()
     
     mock_confirm.assert_called_once()
     mock_run.assert_called_once_with(["shutdown", "-h", "+1"])
@@ -266,7 +277,7 @@ def test_shutdown_cancel_on_windows(assistant_tools_fixture, mocker):
     mock_run = mocker.patch('stuart_ai.tools.subprocess.run')
     mocker.patch('stuart_ai.tools.platform.system', return_value="Windows")
     
-    result = tools._cancel_shutdown.func(tools)
+    result = tools._cancel_shutdown()
     
     mock_run.assert_called_once_with(["shutdown", "/a"])
     assert result == "Desligamento cancelado."
@@ -277,7 +288,7 @@ def test_shutdown_cancel_on_unix(assistant_tools_fixture, mocker):
     mock_run = mocker.patch('stuart_ai.tools.subprocess.run')
     mocker.patch('stuart_ai.tools.platform.system', return_value="Linux")
     
-    result = tools._cancel_shutdown.func(tools)
+    result = tools._cancel_shutdown()
     
     mock_run.assert_called_once_with(["shutdown", "-c"])
     assert result == "Desligamento cancelado."
@@ -288,7 +299,7 @@ def test_shutdown_cancel_exception_on_unix(assistant_tools_fixture, mocker):
     mock_run = mocker.patch('stuart_ai.tools.subprocess.run', side_effect=Exception("Erro desconhecido"))
     mocker.patch('stuart_ai.tools.platform.system', return_value="Linux")
     
-    result = tools._cancel_shutdown.func(tools)
+    result = tools._cancel_shutdown()
     
     mock_run.assert_called_once_with(["shutdown", "-c"])
     assert result == "Ocorreu um erro ao tentar cancelar o comando de desligamento."
@@ -301,7 +312,7 @@ def test_perform_web_search_success(assistant_tools_fixture):
     search_result = "Mantenha seu código limpo e bem documentado."
     mock_web_search_agent.run_search_crew.return_value = search_result
     
-    result = tools._perform_web_search.func(tools, query)
+    result = tools._perform_web_search(query)
     
     mock_speak.assert_called_once_with(f"Ok, pesquisando na web sobre {query}. Isso pode levar um momento.")
     mock_web_search_agent.run_search_crew.assert_called_once_with(query)
@@ -309,7 +320,7 @@ def test_perform_web_search_success(assistant_tools_fixture):
 
 def test_perform_web_search_no_query(assistant_tools_fixture):
     tools, _, _, _ = assistant_tools_fixture
-    result = tools._perform_web_search.func(tools, "")
+    result = tools._perform_web_search("")
     assert result == "Claro, o que você gostaria que eu pesquisasse na web?"
 
 def test_perform_web_search_exception(assistant_tools_fixture, mocker):
@@ -318,20 +329,17 @@ def test_perform_web_search_exception(assistant_tools_fixture, mocker):
     query = "um tópico qualquer"
     mock_web_search_agent.run_search_crew.side_effect = Exception("Erro na pesquisa")
     
-    result = tools._perform_web_search.func(tools, query)
+    result = tools._perform_web_search(query)
     
     mock_speak.assert_called_once_with(f"Ok, pesquisando na web sobre {query}. Isso pode levar um momento.")
     mock_web_search_agent.run_search_crew.assert_called_once_with(query)
     assert result == "Desculpe, ocorreu um erro ao realizar a pesquisa na web."
 
 # Test for _quit
-def test_quit(assistant_tools_fixture, mocker):
+def test_quit(assistant_tools_fixture):
     tools, mock_speak, _, _ = assistant_tools_fixture
     
-    # Mockamos a função exit para que ela não encerre o processo de teste
-    mock_exit = mocker.patch('stuart_ai.tools.exit')
-    
-    tools._quit.func(tools)
+    result = tools._quit()
     
     mock_speak.assert_called_once_with("Encerrando a assistente. Até logo!")
-    mock_exit.assert_called_once_with(0)
+    assert result == AssistantSignal.QUIT

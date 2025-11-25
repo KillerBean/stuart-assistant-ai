@@ -122,6 +122,8 @@ def test_run_search_crew(web_search_agent_fixture, mocker):
     mock_crew_instance.kickoff.assert_called_once()
     assert result == "Resultado da pesquisa do Crew"
 
+
+
 def test_duckduckgo_search_tool_run(mocker):
     """
     Testa o método _run da DuckDuckGoSearchTool para verificar a integração com DuckDuckGoSearchRun.
