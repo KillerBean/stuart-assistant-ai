@@ -129,9 +129,9 @@ class Assistant:
         command = text.lower().replace(self.keyword, "").strip().lstrip(",").strip()
         if not command:
             self.speak("Sim, em que posso ajudar?")
-            return
+            return None
         print(f"Keyword detected! Command: '{command}'")
-        self.command_handler.process(command)
+        return self.command_handler.process(command)
 
     def listen_continuously(self):
         """
@@ -162,7 +162,9 @@ class Assistant:
                     print(f"Heard: {text}")
 
                     if self.keyword in text.lower():
-                        self.handle_command(text)
+                        result = self.handle_command(text)
+                        if result == "QUIT_ASSISTANT":
+                            break
 
                 except sr.WaitTimeoutError:
                     print("Listening timed out, listening again...")

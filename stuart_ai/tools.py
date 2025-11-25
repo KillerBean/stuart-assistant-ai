@@ -137,6 +137,4 @@ class AssistantTools:
     def _quit(self) -> str:
         """Encerra o assistente. Use quando o usuário disser 'sair', 'encerrar' ou 'tchau'."""
         self.speak("Encerrando a assistente. Até logo!")
-        exit(0)
-        # This line is unreachable, but here for completeness
-        return "Saindo..."
+        return "QUIT_ASSISTANT"

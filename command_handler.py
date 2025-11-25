@@ -104,7 +104,10 @@ class CommandHandler:
             return "Claro, sobre o que você gostaria?"
 
     def process(self, command: str):
-        """Processes the user command by routing it to the correct tool using keywords."""
+        """
+        Processes the user command, routes it to the correct tool, and handles graceful shutdown.
+        Returns 'QUIT_ASSISTANT' to signal the main loop to exit.
+        """
         if not command.strip():
             return
 
@@ -123,6 +126,9 @@ class CommandHandler:
                         handler, tool_func = actions
                         matched_keyword = match.group(0)
                         result = handler(command, tool_func, matched_keyword)
+                    
+                    if result == "QUIT_ASSISTANT":
+                        return "QUIT_ASSISTANT"
                     
                     if result:
                         self.speak(str(result))
