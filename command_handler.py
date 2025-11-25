@@ -1,4 +1,5 @@
 import re
+import string
 from stuart_ai.LLM.ollama_llm import OllamaLLM
 from stuart_ai.agents.web_search_agent import WebSearchAgent
 from stuart_ai.tools import AssistantTools
@@ -55,20 +56,34 @@ class CommandHandler:
             (r"\b(sair|encerrar|tchau)\b", quit_tool),
         ]
 
-    def _extract_argument(self, command: str, keywords: list[str]) -> str:
-        """Extracts the argument from the command based on the position of keywords."""
+    def _extract_argument(self, command: str, keyword: str) -> str:
+        """Extracts the argument from the command by finding the keyword and taking the rest of the string."""
         try:
-            # Simple regex to remove keywords and get the rest of the string
-            for keyword in keywords:
-                command = re.sub(r'\b' + re.escape(keyword) + r'\b', '', command, flags=re.IGNORECASE).strip()
-            return command
+            # Find the position of the keyword (case-insensitive)
+            keyword_pos = command.lower().find(keyword.lower())
+            if keyword_pos == -1:
+                return ""
+            
+            # Get the substring after the keyword
+            argument = command[keyword_pos + len(keyword):].strip()
+            
+            # Remove common articles from the beginning of the argument
+            articles = ['o', 'a', 'os', 'as']
+            arg_list = argument.split()
+            if arg_list and arg_list[0].lower() in articles:
+                argument = ' '.join(arg_list[1:])
+            
+            # Remove trailing punctuation
+            argument = argument.rstrip(string.punctuation)
+                
+            return argument
         except Exception as e:
             print(f"Error extracting argument: {e}")
             return ""
 
-    def _handle_search(self, command: str, tool_func, keywords: list[str]):
+    def _handle_search(self, command: str, tool_func, matched_keyword: str):
         """Helper to extract argument and call a tool that needs it."""
-        argument = self._extract_argument(command, keywords)
+        argument = self._extract_argument(command, matched_keyword)
         if argument:
             return tool_func.run(argument)
         else:
@@ -93,8 +108,8 @@ class CommandHandler:
                         result = actions[0].run()
                     else: # Tool with arguments
                         handler, tool_func = actions
-                        keywords = [kw for kw in keywords_regex.replace(r'\b', '').split('|') if kw]
-                        result = handler(command, tool_func, keywords)
+                        matched_keyword = match.group(0)
+                        result = handler(command, tool_func, matched_keyword)
                     
                     if result:
                         self.speak(str(result))
