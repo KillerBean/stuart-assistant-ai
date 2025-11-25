@@ -67,6 +67,10 @@ class AssistantTools:
             return response.text
         except requests.exceptions.RequestException:
             return f"Desculpe, não consegui obter a previsão do tempo para {city}."
+        except Exception as e:
+            print(f"Error getting weather for '{city}': {e}")
+            return "Desculpe, ocorreu um erro ao obter a previsão do tempo."
+
 
     def _open_app(self, app_name: str) -> str:
         """Abre ou inicia um programa no computador. Use para comandos como 'abra o chrome' ou 'inicie o vscode'."""
