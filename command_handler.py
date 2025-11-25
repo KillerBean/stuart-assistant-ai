@@ -104,6 +104,23 @@ class CommandHandler:
             # Ask for clarification if the argument is missing
             return "Claro, sobre o que você gostaria?"
 
+    def _execute_actions(self, actions, command: str, match):
+        """Run the provided actions and return (result, errored_flag)."""
+        tool_to_log = actions[0] if len(actions) == 1 else actions[1]
+        print(f"--- Roteando comando '{command}' para a ação: {tool_to_log.name} ---")
+        try:
+            if len(actions) == 1:  # Tool without arguments
+                result = actions[0].run()
+            else:  # Tool with arguments
+                handler, tool_func = actions
+                matched_keyword = match.group(0)
+                result = handler(command, tool_func, matched_keyword)
+            return result, False
+        except Exception as e:
+            print(f"Error processing command with new router: {e}")
+            self.speak("Desculpe, ocorreu um erro ao processar o comando.")
+            return None, True
+
     def process(self, command: str):
         """
         Processes the user command, routes it to the correct tool, and handles graceful shutdown.
@@ -113,33 +130,23 @@ class CommandHandler:
             return
 
         command_lower = command.lower()
-        
+
         for keywords_regex, *actions in self.router_config:
             match = re.search(keywords_regex, command_lower)
-            if match:
-                tool_to_log = actions[0] if len(actions) == 1 else actions[1]
-                print(f"--- Roteando comando '{command}' para a ação: {tool_to_log.name} ---")
-                
-                try:
-                    if len(actions) == 1: # Tool without arguments
-                        result = actions[0].run()
-                    else: # Tool with arguments
-                        handler, tool_func = actions
-                        matched_keyword = match.group(0)
-                        result = handler(command, tool_func, matched_keyword)
-                    
-                    if result == AssistantSignal.QUIT:
-                        return AssistantSignal.QUIT
-                    
-                    if result:
-                        self.speak(str(result))
-                    return
+            if not match:
+                continue
 
-                except Exception as e:
-                    print(f"Error processing command with new router: {e}")
-                    self.speak("Desculpe, ocorreu um erro ao processar o comando.")
-                    return
-        
+            result, errored = self._execute_actions(actions, command, match)
+            if errored:
+                return
+
+            if result == AssistantSignal.QUIT:
+                return AssistantSignal.QUIT
+
+            if result:
+                self.speak(str(result))
+            return
+
         # If no route is found
         print(f"--- Comando '{command}' não entendido ---")
         self.speak("Desculpe, não entendi o comando.")
