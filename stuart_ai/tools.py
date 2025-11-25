@@ -6,6 +6,8 @@ import requests
 import wikipedia
 
 from stuart_ai.agents.web_search_agent import WebSearchAgent
+from stuart_ai.enums import AssistantSignal
+
 
 
 class AssistantTools:
@@ -134,7 +136,7 @@ class AssistantTools:
             print(f"Error performing web search for '{search_query}': {e}")
             return "Desculpe, ocorreu um erro ao realizar a pesquisa na web."
 
-    def _quit(self) -> str:
+    def _quit(self) -> AssistantSignal:
         """Encerra o assistente. Use quando o usuário disser 'sair', 'encerrar' ou 'tchau'."""
         self.speak("Encerrando a assistente. Até logo!")
-        return "QUIT_ASSISTANT"
+        return AssistantSignal.QUIT

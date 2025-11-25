@@ -3,6 +3,7 @@ import string
 from stuart_ai.LLM.ollama_llm import OllamaLLM
 from stuart_ai.agents.web_search_agent import WebSearchAgent
 from stuart_ai.tools import AssistantTools
+from stuart_ai.enums import AssistantSignal
 
 # A simple, custom tool class to avoid crewai's decorator issues
 class SimpleTool:
@@ -127,8 +128,8 @@ class CommandHandler:
                         matched_keyword = match.group(0)
                         result = handler(command, tool_func, matched_keyword)
                     
-                    if result == "QUIT_ASSISTANT":
-                        return "QUIT_ASSISTANT"
+                    if result == AssistantSignal.QUIT:
+                        return AssistantSignal.QUIT
                     
                     if result:
                         self.speak(str(result))

@@ -9,6 +9,7 @@ from playsound import playsound
 import speech_recognition as sr
 from tmp_file_handler import TempFileHandler
 from command_handler import CommandHandler
+from stuart_ai.enums import AssistantSignal
 
 from stuart_ai.agents.web_search_agent import WebSearchAgent
 from stuart_ai.tools import AssistantTools
@@ -163,7 +164,7 @@ class Assistant:
 
                     if self.keyword in text.lower():
                         result = self.handle_command(text)
-                        if result == "QUIT_ASSISTANT":
+                        if result == AssistantSignal.QUIT:
                             break
 
                 except sr.WaitTimeoutError:
