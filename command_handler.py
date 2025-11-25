@@ -49,7 +49,7 @@ class CommandHandler:
             (r"\b(piada|conte-me uma piada)\b", tell_joke),
             (r"\b(wikipedia|pesquise sobre|o que é)\b", self._handle_search, search_wikipedia),
             (r"\b(clima|previsão do tempo)\b", self._handle_search, get_weather),
-            (r"\b(abra|inicie|execute)\b", self._handle_search, open_app),
+            (r"\b(abra|abrir|inicie|iniciar|execute|executar)\b", self._handle_open_app, open_app),
             (r"\b(desligar|desligue)\b", shutdown_computer),
             (r"\b(cancele o desligamento|cancelar desligamento)\b", cancel_shutdown),
             (r"\b(pesquise na web|procure na web|busque na web)\b", self._handle_search, perform_web_search),
@@ -81,9 +81,22 @@ class CommandHandler:
             print(f"Error extracting argument: {e}")
             return ""
 
-    def _handle_search(self, command: str, tool_func, matched_keyword: str):
-        """Helper to extract argument and call a tool that needs it."""
+    def _handle_open_app(self, command: str, tool_func, matched_keyword: str):
+        """Helper to extract argument for the open_app tool and call it."""
         argument = self._extract_argument(command, matched_keyword)
+        if argument:
+            return tool_func.run(argument)
+        else:
+            # Ask for clarification if the argument is missing
+            return "Claro, qual aplicativo você gostaria de abrir?"
+
+    def _handle_search(self, command: str, tool_func, matched_keyword: str):
+        """Helper to extract argument and call a search-like tool."""
+        keyword_pos = command.lower().find(matched_keyword.lower())
+        argument = ""
+        if keyword_pos != -1:
+            argument = command[keyword_pos + len(matched_keyword):].strip()
+
         if argument:
             return tool_func.run(argument)
         else:
