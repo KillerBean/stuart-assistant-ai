@@ -12,8 +12,8 @@ class SimpleTool:
         self.name = name
         self.func = func
     
-    def run(self, *args, **kwargs):
-        return self.func(*args, **kwargs)
+    async def run(self, *args, **kwargs):
+        return await self.func(*args, **kwargs)
 
 class CommandHandler:
     """
@@ -83,16 +83,16 @@ class CommandHandler:
             logger.error(f"Error extracting argument: {e}")
             return ""
 
-    def _handle_open_app(self, command: str, tool_func, matched_keyword: str):
+    async def _handle_open_app(self, command: str, tool_func, matched_keyword: str):
         """Helper to extract argument for the open_app tool and call it."""
         argument = self._extract_argument(command, matched_keyword)
         if argument:
-            return tool_func.run(argument)
+            return await tool_func.run(argument)
         else:
             # Ask for clarification if the argument is missing
             return "Claro, qual aplicativo você gostaria de abrir?"
 
-    def _handle_search(self, command: str, tool_func, matched_keyword: str):
+    async def _handle_search(self, command: str, tool_func, matched_keyword: str):
         """Helper to extract argument and call a search-like tool."""
         keyword_pos = command.lower().find(matched_keyword.lower())
         argument = ""
@@ -100,29 +100,29 @@ class CommandHandler:
             argument = command[keyword_pos + len(matched_keyword):].strip()
 
         if argument:
-            return tool_func.run(argument)
+            return await tool_func.run(argument)
         else:
             # Ask for clarification if the argument is missing
             return "Claro, sobre o que você gostaria?"
 
-    def _execute_actions(self, actions, command: str, match):
+    async def _execute_actions(self, actions, command: str, match):
         """Run the provided actions and return (result, errored_flag)."""
         tool_to_log = actions[0] if len(actions) == 1 else actions[1]
         logger.info(f"--- Roteando comando '{command}' para a ação: {tool_to_log.name} ---")
         try:
             if len(actions) == 1:  # Tool without arguments
-                result = actions[0].run()
+                result = await actions[0].run()
             else:  # Tool with arguments
                 handler, tool_func = actions
                 matched_keyword = match.group(0)
-                result = handler(command, tool_func, matched_keyword)
+                result = await handler(command, tool_func, matched_keyword)
             return result, False
         except (AttributeError, TypeError, ValueError) as e:
             logger.error(f"Error processing command with new router: {e}")
-            self.speak("Desculpe, ocorreu um erro ao processar o comando.")
+            await self.speak("Desculpe, ocorreu um erro ao processar o comando.")
             return None, True
 
-    def process(self, command: str):
+    async def process(self, command: str):
         """
         Processes the user command, routes it to the correct tool, and handles graceful shutdown.
         Returns 'QUIT_ASSISTANT' to signal the main loop to exit.
@@ -137,7 +137,7 @@ class CommandHandler:
             if not match:
                 continue
 
-            result, errored = self._execute_actions(actions, command, match)
+            result, errored = await self._execute_actions(actions, command, match)
             if errored:
                 return
 
@@ -145,9 +145,9 @@ class CommandHandler:
                 return AssistantSignal.QUIT
 
             if result:
-                self.speak(str(result))
+                await self.speak(str(result))
             return
 
         # If no route is found
         logger.warning(f"--- Comando '{command}' não entendido ---")
-        self.speak("Desculpe, não entendi o comando.")
+        await self.speak("Desculpe, não entendi o comando.")

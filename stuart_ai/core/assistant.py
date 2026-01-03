@@ -2,6 +2,7 @@ import os
 import uuid
 import platform
 import subprocess
+import asyncio
 import whisper
 import wikipedia
 from gtts import gTTS
@@ -58,38 +59,45 @@ class Assistant:
             self.web_search_agent
         )
 
-    def speak(self, text: str):
+    async def speak(self, text: str):
         """
         Converts text to speech and plays it.
         """
-        temp_audio_file = f"tmp/response_{uuid.uuid4()}.mp3"
+        temp_audio_file = f"{settings.temp_dir}/response_{uuid.uuid4()}.mp3"
         try:
             logger.info(f"Assistant: {text}")
-            tts = gTTS(text=text, lang='pt-br')
+            tts = await asyncio.to_thread(gTTS, text=text, lang='pt-br')
 
             dir_name = os.path.dirname(temp_audio_file)
             if not os.path.exists(dir_name):
                 os.makedirs(dir_name)
 
-            tts.save(temp_audio_file)
+            await asyncio.to_thread(tts.save, temp_audio_file)
 
             system = platform.system()
             if system == "Linux":
                 try:
                     # Use mpg123 on Linux, as playsound can be problematic
-                    subprocess.run(
-                        ["mpg123", temp_audio_file], 
-                        check=True, 
-                        stdout=subprocess.DEVNULL, 
+                    await asyncio.create_subprocess_exec(
+                        "mpg123", temp_audio_file,
+                        stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL
                     )
-                except (FileNotFoundError, subprocess.CalledProcessError):
+                    # We wait a bit or use wait() if we want it to be fully synchronous playback
+                    # For now, let's wait for it to finish to mimic original behavior
+                    process = await asyncio.create_subprocess_exec(
+                        "mpg123", temp_audio_file,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL
+                    )
+                    await process.wait()
+                except (FileNotFoundError, Exception):
                     # Fallback to playsound if mpg123 is not available or fails
                     logger.warning("mpg123 not found or failed, falling back to playsound...")
-                    playsound(temp_audio_file)
+                    await asyncio.to_thread(playsound, temp_audio_file)
             else:
                 # Use playsound for other systems (Windows, Darwin)
-                playsound(temp_audio_file)
+                await asyncio.to_thread(playsound, temp_audio_file)
 
         except Exception as e:
             logger.error(f"Error in text-to-speech: {e}")
@@ -97,29 +105,31 @@ class Assistant:
             if os.path.exists(temp_audio_file):
                 os.remove(temp_audio_file)
 
-    def listen_for_confirmation(self, prompt: str) -> bool:
+    async def listen_for_confirmation(self, prompt: str) -> bool:
         """Asks a confirmation question and listens for a 'yes' or 'no' answer."""
-        self.speak(prompt)
+        await self.speak(prompt)
         try:
-            with sr.Microphone() as source:
-                logger.info("Listening for confirmation...")
-                # Adjust for ambient noise to better capture the short answer
-                self.recognizer.adjust_for_ambient_noise(source, duration=1)
-                audio = self.recognizer.listen(source, timeout=5, phrase_time_limit=3)
+            def listen_act():
+                with sr.Microphone() as source:
+                    logger.info("Listening for confirmation...")
+                    self.recognizer.adjust_for_ambient_noise(source, duration=1)
+                    return self.recognizer.listen(source, timeout=5, phrase_time_limit=3)
 
-                with TempFileHandler(self.temp_file_path) as temp_file:
-                    with open(temp_file, "wb") as f:
-                        if hasattr(audio, '__iter__') and not isinstance(audio, sr.AudioData):
-                            audio = next(audio)
-                            f.write(audio.get_wav_data())
-                        elif isinstance(audio, sr.AudioData):
-                            f.write(audio.get_wav_data())
-                    
-                    result = self.model.transcribe(temp_file, language="pt", fp16=False)
+            audio = await asyncio.to_thread(listen_act)
+
+            with TempFileHandler(self.temp_file_path) as temp_file:
+                with open(temp_file, "wb") as f:
+                    if hasattr(audio, '__iter__') and not isinstance(audio, sr.AudioData):
+                        audio = next(audio)
+                        f.write(audio.get_wav_data())
+                    elif isinstance(audio, sr.AudioData):
+                        f.write(audio.get_wav_data())
                 
-                response_text = str(result['text']).lower().strip()
-                logger.info(f"Confirmation response: '{response_text}'")
-                return "sim" in response_text
+                result = await asyncio.to_thread(self.model.transcribe, temp_file, language="pt", fp16=False)
+            
+            response_text = str(result['text']).lower().strip()
+            logger.info(f"Confirmation response: '{response_text}'")
+            return "sim" in response_text
 
         except (sr.WaitTimeoutError, sr.UnknownValueError):
             logger.warning("Could not understand confirmation.")
@@ -128,50 +138,60 @@ class Assistant:
             logger.error(f"An error occurred during confirmation: {e}")
             return False
 
-    def handle_command(self, text: str):
+    async def handle_command(self, text: str):
         command = text.lower().replace(self.keyword, "").strip().lstrip(",").strip()
         if not command:
-            self.speak("Sim, em que posso ajudar?")
+            await self.speak("Sim, em que posso ajudar?")
             return None
         logger.info(f"Keyword detected! Command: '{command}'")
-        return self.command_handler.process(command)
+        return await self.command_handler.process(command)
 
-    def listen_continuously(self):
+    async def listen_continuously(self):
         """
         Listens for audio continuously, transcribes it, and checks for the keyword.
         """
-        with sr.Microphone() as source:
-            logger.info("Adjusting for ambient noise...")
-            self.recognizer.adjust_for_ambient_noise(source, duration=1)
-            logger.info(f"Listening for keyword '{self.keyword}'...")
-            while True:
-                try:
-                    audio = self.recognizer.listen(source)
-                    logger.debug("Audio captured, processing...")
-                    
-                    
-                    with TempFileHandler(self.temp_file_path) as temp_file:
-                        with open(temp_file, "wb") as f:
-                            if hasattr(audio, '__iter__') and not isinstance(audio, sr.AudioData):
-                                audio = next(audio)
-                                f.write(audio.get_wav_data())
-                            elif isinstance(audio, sr.AudioData):
-                                f.write(audio.get_wav_data())
-                        
-                        # Transcribe using Whisper
-                        result = self.model.transcribe(temp_file, language="pt", fp16=False)
-                        
-                    text = str(result['text']).strip()
-                    logger.debug(f"Heard: {text}")
+        logger.info("Adjusting for ambient noise...")
+        # Initial adjustment
+        def adjust():
+            with sr.Microphone() as source:
+                self.recognizer.adjust_for_ambient_noise(source, duration=1)
+        
+        await asyncio.to_thread(adjust)
+        
+        logger.info(f"Listening for keyword '{self.keyword}'...")
+        
+        while True:
+            try:
+                def listen_loop():
+                    with sr.Microphone() as source:
+                        return self.recognizer.listen(source)
 
-                    if self.keyword in text.lower():
-                        result = self.handle_command(text)
-                        if result == AssistantSignal.QUIT:
-                            break
+                audio = await asyncio.to_thread(listen_loop)
+                logger.debug("Audio captured, processing...")
+                
+                with TempFileHandler(self.temp_file_path) as temp_file:
+                    with open(temp_file, "wb") as f:
+                        if hasattr(audio, '__iter__') and not isinstance(audio, sr.AudioData):
+                            audio = next(audio)
+                            f.write(audio.get_wav_data())
+                        elif isinstance(audio, sr.AudioData):
+                            f.write(audio.get_wav_data())
+                    
+                    # Transcribe using Whisper
+                    result = await asyncio.to_thread(self.model.transcribe, temp_file, language="pt", fp16=False)
+                    
+                text = str(result['text']).strip()
+                logger.debug(f"Heard: {text}")
 
-                except sr.WaitTimeoutError:
-                    logger.debug("Listening timed out, listening again...")
-                except sr.UnknownValueError:
-                    logger.debug("Could not understand audio, listening again...")
-                except Exception as e:
-                    logger.error(f"An unexpected error occurred: {e}")
+                if self.keyword in text.lower():
+                    result = await self.handle_command(text)
+                    if result == AssistantSignal.QUIT:
+                        break
+
+            except sr.WaitTimeoutError:
+                logger.debug("Listening timed out, listening again...")
+            except sr.UnknownValueError:
+                logger.debug("Could not understand audio, listening again...")
+            except Exception as e:
+                logger.error(f"An unexpected error occurred: {e}")
+                await asyncio.sleep(1) # Prevent tight error loop
