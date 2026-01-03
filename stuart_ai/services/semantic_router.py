@@ -1,4 +1,5 @@
 import json
+import asyncio
 from typing import Optional, Dict, Any
 from stuart_ai.LLM.ollama_llm import OllamaLLM
 from stuart_ai.core.logger import logger
@@ -45,9 +46,9 @@ class SemanticRouter:
         """
 
         try:
-            # We use the synchronous call inside a thread if needed, but CrewAI LLM call might be blocking.
-            # CrewAI LLM 'call' method returns a string.
-            response = self.llm.call([{"role": "user", "content": prompt}])
+            # We use the synchronous call inside a thread to avoid blocking the loop
+            messages = [{"role": "user", "content": prompt}]
+            response = await asyncio.to_thread(self.llm.call, messages)
             
             # Clean up response (remove markdown code blocks if present)
             cleaned_response = response.strip().replace("```json", "").replace("```", "").strip()
