@@ -1,10 +1,12 @@
 import re
 import string
+import asyncio
 from stuart_ai.LLM.ollama_llm import OllamaLLM
 from stuart_ai.agents.web_search_agent import WebSearchAgent
 from stuart_ai.tools import AssistantTools
 from stuart_ai.core.enums import AssistantSignal
 from stuart_ai.core.logger import logger
+from stuart_ai.services.semantic_router import SemanticRouter
 
 # A simple, custom tool class to avoid crewai's decorator issues
 class SimpleTool:
@@ -17,15 +19,15 @@ class SimpleTool:
 
 class CommandHandler:
     """
-    Handles the processing of user commands using a fast, keyword-based routing system.
+    Handles the processing of user commands using a fast, keyword-based routing system and a Semantic Router.
     """
 
     def __init__(self, speak_func, confirmation_func, app_aliases, web_search_agent: WebSearchAgent):
         self.speak = speak_func
         self.confirm = confirmation_func
         self.app_aliases = app_aliases
-        self.llm = OllamaLLM().get_llm_instance()
         self.web_search_agent = web_search_agent 
+        self.semantic_router = SemanticRouter()
 
         assistant_tools = AssistantTools(
             speak_func=self.speak,
@@ -34,28 +36,25 @@ class CommandHandler:
             web_search_agent=self.web_search_agent
         )
 
-        # Manually create tools using our SimpleTool class
-        get_time = SimpleTool(name='_get_time', func=assistant_tools._get_time)
-        tell_joke = SimpleTool(name='_tell_joke', func=assistant_tools._tell_joke)
-        search_wikipedia = SimpleTool(name='_search_wikipedia', func=assistant_tools._search_wikipedia)
-        get_weather = SimpleTool(name='_get_weather', func=assistant_tools._get_weather)
-        open_app = SimpleTool(name='_open_app', func=assistant_tools._open_app)
-        shutdown_computer = SimpleTool(name='_shutdown_computer', func=assistant_tools._shutdown_computer)
-        cancel_shutdown = SimpleTool(name='_cancel_shutdown', func=assistant_tools._cancel_shutdown)
-        perform_web_search = SimpleTool(name='_perform_web_search', func=assistant_tools._perform_web_search)
-        quit_tool = SimpleTool(name='_quit', func=assistant_tools._quit)
+        # Tools available
+        self.tools = {
+            "time": SimpleTool(name='_get_time', func=assistant_tools._get_time),
+            "joke": SimpleTool(name='_tell_joke', func=assistant_tools._tell_joke),
+            "wikipedia": SimpleTool(name='_search_wikipedia', func=assistant_tools._search_wikipedia),
+            "weather": SimpleTool(name='_get_weather', func=assistant_tools._get_weather),
+            "web_search": SimpleTool(name='_perform_web_search', func=assistant_tools._perform_web_search),
+            "open_app": SimpleTool(name='_open_app', func=assistant_tools._open_app),
+            "shutdown_computer": SimpleTool(name='_shutdown_computer', func=assistant_tools._shutdown_computer),
+            "cancel_shutdown": SimpleTool(name='_cancel_shutdown', func=assistant_tools._cancel_shutdown),
+            "quit": SimpleTool(name='_quit', func=assistant_tools._quit)
+        }
 
-        # Keyword-based router configuration
-        self.router_config = [
-            (r"\b(horas?|tempo)\b", get_time),
-            (r"\b(piada|conte-me uma piada)\b", tell_joke),
-            (r"\b(wikipedia|pesquise sobre|o que é)\b", self._handle_search, search_wikipedia),
-            (r"\b(clima|previsão do tempo)\b", self._handle_search, get_weather),
-            (r"\b(abra|abrir|inicie|iniciar|execute|executar)\b", self._handle_open_app, open_app),
-            (r"\b(desligar|desligue)\b", shutdown_computer),
-            (r"\b(cancele o desligamento|cancelar desligamento)\b", cancel_shutdown),
-            (r"\b(pesquise na web|procure na web|busque na web)\b", self._handle_search, perform_web_search),
-            (r"\b(sair|encerrar|tchau)\b", quit_tool),
+        # System/Critical commands - kept in Regex for speed and safety
+        self.system_routes = [
+            (r"\b(abra|abrir|inicie|iniciar|execute|executar)\b", self._handle_open_app, self.tools["open_app"]),
+            (r"\b(desligar|desligue)\b", self.tools["shutdown_computer"]),
+            (r"\b(cancele o desligamento|cancelar desligamento)\b", self.tools["cancel_shutdown"]),
+            (r"\b(sair|encerrar|tchau)\b", self.tools["quit"]),
         ]
 
     def _extract_argument(self, command: str, keyword: str) -> str:
@@ -89,26 +88,12 @@ class CommandHandler:
         if argument:
             return await tool_func.run(argument)
         else:
-            # Ask for clarification if the argument is missing
             return "Claro, qual aplicativo você gostaria de abrir?"
 
-    async def _handle_search(self, command: str, tool_func, matched_keyword: str):
-        """Helper to extract argument and call a search-like tool."""
-        keyword_pos = command.lower().find(matched_keyword.lower())
-        argument = ""
-        if keyword_pos != -1:
-            argument = command[keyword_pos + len(matched_keyword):].strip()
-
-        if argument:
-            return await tool_func.run(argument)
-        else:
-            # Ask for clarification if the argument is missing
-            return "Claro, sobre o que você gostaria?"
-
-    async def _execute_actions(self, actions, command: str, match):
-        """Run the provided actions and return (result, errored_flag)."""
+    async def _execute_system_actions(self, actions, command: str, match):
+        """Run the provided system actions and return (result, errored_flag)."""
         tool_to_log = actions[0] if len(actions) == 1 else actions[1]
-        logger.info(f"--- Roteando comando '{command}' para a ação: {tool_to_log.name} ---")
+        logger.info(f"--- Roteando comando '{command}' para a ação de Sistema: {tool_to_log.name} ---")
         try:
             if len(actions) == 1:  # Tool without arguments
                 result = await actions[0].run()
@@ -118,26 +103,26 @@ class CommandHandler:
                 result = await handler(command, tool_func, matched_keyword)
             return result, False
         except (AttributeError, TypeError, ValueError) as e:
-            logger.error(f"Error processing command with new router: {e}")
-            await self.speak("Desculpe, ocorreu um erro ao processar o comando.")
+            logger.error(f"Error processing command with system router: {e}")
+            await self.speak("Desculpe, ocorreu um erro ao processar o comando de sistema.")
             return None, True
 
     async def process(self, command: str):
         """
-        Processes the user command, routes it to the correct tool, and handles graceful shutdown.
-        Returns 'QUIT_ASSISTANT' to signal the main loop to exit.
+        Processes the user command using Hybrid Routing (System Regex -> Semantic Router).
         """
         if not command.strip():
             return
 
         command_lower = command.lower()
 
-        for keywords_regex, *actions in self.router_config:
+        # 1. Fast Path: System Commands (Regex)
+        for keywords_regex, *actions in self.system_routes:
             match = re.search(keywords_regex, command_lower)
             if not match:
                 continue
 
-            result, errored = await self._execute_actions(actions, command, match)
+            result, errored = await self._execute_system_actions(actions, command, match)
             if errored:
                 return
 
@@ -148,6 +133,46 @@ class CommandHandler:
                 await self.speak(str(result))
             return
 
-        # If no route is found
-        logger.warning(f"--- Comando '{command}' não entendido ---")
-        await self.speak("Desculpe, não entendi o comando.")
+        # 2. Smart Path: Semantic Router
+        logger.info(f"--- Roteando comando '{command}' via Semantic Router ---")
+        
+        # Tell user we are thinking if it's not a system command
+        # await self.speak("Um momento...") # Optional, might be annoying for quick queries like time.
+
+        router_response = await self.semantic_router.route(command)
+        tool_name = router_response.get("tool")
+        args = router_response.get("args")
+
+        if tool_name == "general_chat":
+             # For now, just a placeholder. Future: Use LLM to chat.
+             # We can actually use the LLM to generate a reply here if we want.
+             # But let's stick to the router contract.
+             # If general chat, we might want to return nothing and let a separate "ChatAgent" handle it,
+             # OR we implement a simple chat function here.
+             # For now, let's treat it as a "I don't know" or integrate a simple chat.
+             
+             # Since we don't have a chat memory yet, let's use the web search or just say "I am listening".
+             # Actually, let's implement a quick chat response using the LLM directly?
+             # User asked for Semantic Router first, memory second.
+             # Let's direct general_chat to a generic response or a quick LLM generation.
+             
+             # Simple fallback for now:
+             await self.speak("Entendi. Como posso ajudar com isso?")
+             return
+
+        if tool_name in self.tools:
+            tool = self.tools[tool_name]
+            try:
+                if args:
+                    result = await tool.run(args)
+                else:
+                    result = await tool.run()
+                
+                if result:
+                    await self.speak(str(result))
+            except Exception as e:
+                logger.error(f"Error executing semantic tool {tool_name}: {e}")
+                await self.speak("Desculpe, tive um problema ao executar essa ação.")
+        else:
+            logger.warning(f"--- Ferramenta '{tool_name}' não encontrada ou comando não entendido ---")
+            await self.speak("Desculpe, não entendi o que você quis dizer.")
