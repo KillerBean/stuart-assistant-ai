@@ -7,9 +7,11 @@ import wikipedia
 from gtts import gTTS
 from playsound import playsound
 import speech_recognition as sr
-from tmp_file_handler import TempFileHandler
-from command_handler import CommandHandler
-from stuart_ai.enums import AssistantSignal
+from stuart_ai.utils.tmp_file_handler import TempFileHandler
+from stuart_ai.services.command_handler import CommandHandler
+from stuart_ai.core.enums import AssistantSignal
+from stuart_ai.core.config import settings
+from stuart_ai.core.logger import logger
 
 from stuart_ai.agents.web_search_agent import WebSearchAgent
 from stuart_ai.tools import AssistantTools
@@ -18,13 +20,13 @@ from stuart_ai.LLM.ollama_llm import OllamaLLM
 
 class Assistant:
     def __init__(self):
-        self.keyword = os.getenv("ASSISTANT_KEYWORD", "stuart").lower()
-        self.temp_file_path = "tmp/temp_audio.wav"
+        self.keyword = settings.assistant_keyword.lower()
+        self.temp_file_path = f"{settings.temp_dir}/temp_audio.wav"
         self.recognizer = sr.Recognizer()
-        print("Loading Whisper model...")
+        logger.info("Loading Whisper model...")
         self.model = whisper.load_model("small")
         wikipedia.set_lang("pt")
-        print("Model loaded.")
+        logger.info("Model loaded.")
         self.app_aliases = {
             "navegador": { 
                 "Linux": "firefox",
@@ -62,7 +64,7 @@ class Assistant:
         """
         temp_audio_file = f"tmp/response_{uuid.uuid4()}.mp3"
         try:
-            print(f"Assistant: {text}")
+            logger.info(f"Assistant: {text}")
             tts = gTTS(text=text, lang='pt-br')
 
             dir_name = os.path.dirname(temp_audio_file)
@@ -83,14 +85,14 @@ class Assistant:
                     )
                 except (FileNotFoundError, subprocess.CalledProcessError):
                     # Fallback to playsound if mpg123 is not available or fails
-                    print("mpg123 not found or failed, falling back to playsound...")
+                    logger.warning("mpg123 not found or failed, falling back to playsound...")
                     playsound(temp_audio_file)
             else:
                 # Use playsound for other systems (Windows, Darwin)
                 playsound(temp_audio_file)
 
         except Exception as e:
-            print(f"Error in text-to-speech: {e}")
+            logger.error(f"Error in text-to-speech: {e}")
         finally:
             if os.path.exists(temp_audio_file):
                 os.remove(temp_audio_file)
@@ -100,7 +102,7 @@ class Assistant:
         self.speak(prompt)
         try:
             with sr.Microphone() as source:
-                print("Listening for confirmation...")
+                logger.info("Listening for confirmation...")
                 # Adjust for ambient noise to better capture the short answer
                 self.recognizer.adjust_for_ambient_noise(source, duration=1)
                 audio = self.recognizer.listen(source, timeout=5, phrase_time_limit=3)
@@ -116,14 +118,14 @@ class Assistant:
                     result = self.model.transcribe(temp_file, language="pt", fp16=False)
                 
                 response_text = str(result['text']).lower().strip()
-                print(f"Confirmation response: '{response_text}'")
+                logger.info(f"Confirmation response: '{response_text}'")
                 return "sim" in response_text
 
         except (sr.WaitTimeoutError, sr.UnknownValueError):
-            print("Could not understand confirmation.")
+            logger.warning("Could not understand confirmation.")
             return False
         except Exception as e:
-            print(f"An error occurred during confirmation: {e}")
+            logger.error(f"An error occurred during confirmation: {e}")
             return False
 
     def handle_command(self, text: str):
@@ -131,7 +133,7 @@ class Assistant:
         if not command:
             self.speak("Sim, em que posso ajudar?")
             return None
-        print(f"Keyword detected! Command: '{command}'")
+        logger.info(f"Keyword detected! Command: '{command}'")
         return self.command_handler.process(command)
 
     def listen_continuously(self):
@@ -139,13 +141,13 @@ class Assistant:
         Listens for audio continuously, transcribes it, and checks for the keyword.
         """
         with sr.Microphone() as source:
-            print("Adjusting for ambient noise...")
+            logger.info("Adjusting for ambient noise...")
             self.recognizer.adjust_for_ambient_noise(source, duration=1)
-            print(f"Listening for keyword '{self.keyword}'...")
+            logger.info(f"Listening for keyword '{self.keyword}'...")
             while True:
                 try:
                     audio = self.recognizer.listen(source)
-                    print("Audio captured, processing...")
+                    logger.debug("Audio captured, processing...")
                     
                     
                     with TempFileHandler(self.temp_file_path) as temp_file:
@@ -160,7 +162,7 @@ class Assistant:
                         result = self.model.transcribe(temp_file, language="pt", fp16=False)
                         
                     text = str(result['text']).strip()
-                    print(f"Heard: {text}")
+                    logger.debug(f"Heard: {text}")
 
                     if self.keyword in text.lower():
                         result = self.handle_command(text)
@@ -168,8 +170,8 @@ class Assistant:
                             break
 
                 except sr.WaitTimeoutError:
-                    print("Listening timed out, listening again...")
+                    logger.debug("Listening timed out, listening again...")
                 except sr.UnknownValueError:
-                    print("Could not understand audio, listening again...")
+                    logger.debug("Could not understand audio, listening again...")
                 except Exception as e:
-                    print(f"An unexpected error occurred: {e}")
+                    logger.error(f"An unexpected error occurred: {e}")

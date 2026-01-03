@@ -3,7 +3,8 @@ import string
 from stuart_ai.LLM.ollama_llm import OllamaLLM
 from stuart_ai.agents.web_search_agent import WebSearchAgent
 from stuart_ai.tools import AssistantTools
-from stuart_ai.enums import AssistantSignal
+from stuart_ai.core.enums import AssistantSignal
+from stuart_ai.core.logger import logger
 
 # A simple, custom tool class to avoid crewai's decorator issues
 class SimpleTool:
@@ -79,7 +80,7 @@ class CommandHandler:
                 
             return argument
         except (AttributeError, TypeError, ValueError) as e:
-            print(f"Error extracting argument: {e}")
+            logger.error(f"Error extracting argument: {e}")
             return ""
 
     def _handle_open_app(self, command: str, tool_func, matched_keyword: str):
@@ -107,7 +108,7 @@ class CommandHandler:
     def _execute_actions(self, actions, command: str, match):
         """Run the provided actions and return (result, errored_flag)."""
         tool_to_log = actions[0] if len(actions) == 1 else actions[1]
-        print(f"--- Roteando comando '{command}' para a ação: {tool_to_log.name} ---")
+        logger.info(f"--- Roteando comando '{command}' para a ação: {tool_to_log.name} ---")
         try:
             if len(actions) == 1:  # Tool without arguments
                 result = actions[0].run()
@@ -117,7 +118,7 @@ class CommandHandler:
                 result = handler(command, tool_func, matched_keyword)
             return result, False
         except (AttributeError, TypeError, ValueError) as e:
-            print(f"Error processing command with new router: {e}")
+            logger.error(f"Error processing command with new router: {e}")
             self.speak("Desculpe, ocorreu um erro ao processar o comando.")
             return None, True
 
@@ -148,5 +149,5 @@ class CommandHandler:
             return
 
         # If no route is found
-        print(f"--- Comando '{command}' não entendido ---")
+        logger.warning(f"--- Comando '{command}' não entendido ---")
         self.speak("Desculpe, não entendi o comando.")

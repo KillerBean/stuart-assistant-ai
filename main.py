@@ -1,4 +1,4 @@
-from assistant import Assistant
+from stuart_ai.core.assistant import Assistant
 
 def main():
     assistant = Assistant()
