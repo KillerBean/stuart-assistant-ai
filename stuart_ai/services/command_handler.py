@@ -7,6 +7,7 @@ from stuart_ai.tools import AssistantTools
 from stuart_ai.core.enums import AssistantSignal
 from stuart_ai.core.logger import logger
 from stuart_ai.services.semantic_router import SemanticRouter
+from stuart_ai.core.memory import ConversationMemory
 
 # A simple, custom tool class to avoid crewai's decorator issues
 class SimpleTool:
@@ -28,6 +29,7 @@ class CommandHandler:
         self.app_aliases = app_aliases
         self.web_search_agent = web_search_agent 
         self.semantic_router = SemanticRouter()
+        self.memory = ConversationMemory()
 
         assistant_tools = AssistantTools(
             speak_func=self.speak,
@@ -114,6 +116,9 @@ class CommandHandler:
         if not command.strip():
             return
 
+        # Add user command to memory
+        self.memory.add_user_message(command)
+
         command_lower = command.lower()
 
         # 1. Fast Path: System Commands (Regex)
@@ -130,34 +135,23 @@ class CommandHandler:
                 return AssistantSignal.QUIT
 
             if result:
+                self.memory.add_assistant_message(str(result))
                 await self.speak(str(result))
             return
 
         # 2. Smart Path: Semantic Router
         logger.info(f"--- Roteando comando '{command}' via Semantic Router ---")
         
-        # Tell user we are thinking if it's not a system command
-        # await self.speak("Um momento...") # Optional, might be annoying for quick queries like time.
-
-        router_response = await self.semantic_router.route(command)
+        history = self.memory.get_formatted_history()
+        router_response = await self.semantic_router.route(command, history_str=history)
         tool_name = router_response.get("tool")
         args = router_response.get("args")
 
         if tool_name == "general_chat":
-             # For now, just a placeholder. Future: Use LLM to chat.
-             # We can actually use the LLM to generate a reply here if we want.
-             # But let's stick to the router contract.
-             # If general chat, we might want to return nothing and let a separate "ChatAgent" handle it,
-             # OR we implement a simple chat function here.
-             # For now, let's treat it as a "I don't know" or integrate a simple chat.
-             
-             # Since we don't have a chat memory yet, let's use the web search or just say "I am listening".
-             # Actually, let's implement a quick chat response using the LLM directly?
-             # User asked for Semantic Router first, memory second.
-             # Let's direct general_chat to a generic response or a quick LLM generation.
-             
-             # Simple fallback for now:
-             await self.speak("Entendi. Como posso ajudar com isso?")
+             # Simple fallback for now
+             response_text = "Entendi. Como posso ajudar com isso?"
+             self.memory.add_assistant_message(response_text)
+             await self.speak(response_text)
              return
 
         if tool_name in self.tools:
@@ -169,6 +163,7 @@ class CommandHandler:
                     result = await tool.run()
                 
                 if result:
+                    self.memory.add_assistant_message(str(result))
                     await self.speak(str(result))
             except Exception as e:
                 logger.error(f"Error executing semantic tool {tool_name}: {e}")

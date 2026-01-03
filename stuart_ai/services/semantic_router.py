@@ -7,13 +7,18 @@ class SemanticRouter:
     def __init__(self):
         self.llm = OllamaLLM().get_llm_instance()
 
-    async def route(self, command: str) -> Dict[str, Any]:
+    async def route(self, command: str, history_str: str = "") -> Dict[str, Any]:
         """
-        Analyzes the command and returns the intent and arguments in JSON format.
+        Analyzes the command and returns the intent and arguments in JSON format, considering conversation history.
         """
         prompt = f"""
         Você é o cérebro de um assistente virtual chamado Stuart.
         Sua função é analisar o comando do usuário e decidir qual ferramenta usar.
+        
+        Histórico da Conversa (use para resolver referências como 'ele', 'disso', 'lá'):
+        ---
+        {history_str}
+        ---
         
         Ferramentas disponíveis:
         - "time": Perguntas sobre horas.
@@ -27,17 +32,15 @@ class SemanticRouter:
         Responda APENAS um objeto JSON no seguinte formato, sem markdown ou explicações:
         {{
             "tool": "nome_da_ferramenta",
-            "args": "argumento_extraido_ou_null"
+            "args": "argumento_extraido_ou_resolvido_pelo_historico"
         }}
         
         Exemplos:
-        Usuário: "Que horas são?" -> {{"tool": "time", "args": null}}
-        Usuário: "Está chovendo em São Paulo?" -> {{"tool": "weather", "args": "São Paulo"}}
-        Usuário: "Pesquise sobre a teoria das cordas" -> {{"tool": "wikipedia", "args": "Teoria das Cordas"}}
-        Usuário: "Preço do Bitcoin hoje" -> {{"tool": "web_search", "args": "Preço do Bitcoin hoje"}}
-        Usuário: "Olá Stuart, tudo bem?" -> {{"tool": "general_chat", "args": null}}
+        (Histórico vazio) Usuário: "Que horas são?" -> {{"tool": "time", "args": null}}
+        (Histórico: User='Tempo em SP?') Usuário: "E no Rio?" -> {{"tool": "weather", "args": "Rio de Janeiro"}}
+        (Histórico: User='Quem foi Napoleão?') Usuário: "Onde ele morreu?" -> {{"tool": "wikipedia", "args": "Morte de Napoleão"}}
         
-        Comando do usuário: "{command}"
+        Comando atual do usuário: "{command}"
         JSON:
         """
 

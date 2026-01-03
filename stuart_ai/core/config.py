@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     llm_port: int = 11434
     llm_model: str = "ollama/gemma3:latest"
     llm_temperature: float = 0.7
+    
+    # Memory Configuration
+    memory_window_size: int = 10
 
     # Web Search
     # Add API keys here if you decide to switch to Serper/Google later
