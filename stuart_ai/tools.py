@@ -6,7 +6,8 @@ import requests
 import wikipedia
 
 from stuart_ai.agents.web_search_agent import WebSearchAgent
-from stuart_ai.enums import AssistantSignal
+from stuart_ai.core.enums import AssistantSignal
+from stuart_ai.core.logger import logger
 
 
 
@@ -36,7 +37,7 @@ class AssistantTools:
             joke_data = response.json()
             return joke_data['joke'] if joke_data.get('type') == 'single' else f"{joke_data['setup']} ... {joke_data['delivery']}"
         except requests.exceptions.RequestException as e:
-            print(f"Error fetching joke from API: {e}")
+            logger.error(f"Error fetching joke from API: {e}")
             return "Desculpe, não consegui buscar uma piada agora."
 
     def _search_wikipedia(self, search_term: str) -> str:
@@ -52,7 +53,7 @@ class AssistantTools:
         except wikipedia.exceptions.DisambiguationError:
             return f"O termo {search_term} é muito vago. Por favor, seja mais específico."
         except Exception as e:
-            print(f"Error searching Wikipedia for '{search_term}': {e}")
+            logger.error(f"Error searching Wikipedia for '{search_term}': {e}")
             return "Desculpe, ocorreu um erro ao pesquisar no Wikipedia."
 
     def _get_weather(self, city: str) -> str:
@@ -68,7 +69,7 @@ class AssistantTools:
         except requests.exceptions.RequestException:
             return f"Desculpe, não consegui obter a previsão do tempo para {city}."
         except Exception as e:
-            print(f"Error getting weather for '{city}': {e}")
+            logger.error(f"Error getting weather for '{city}': {e}")
             return "Desculpe, ocorreu um erro ao obter a previsão do tempo."
 
 
@@ -95,7 +96,7 @@ class AssistantTools:
         except FileNotFoundError:
             return f"Desculpe, não consegui encontrar o programa {spoken_name}."
         except Exception as e:
-            print(f"Error opening application: {e}")
+            logger.error(f"Error opening application: {e}")
             return f"Ocorreu um erro ao tentar abrir o {spoken_name}."
 
     def _shutdown_computer(self) -> str:
@@ -109,7 +110,7 @@ class AssistantTools:
                     subprocess.run(["shutdown", "-h", "+1"])
                 return "Ok, desligando o computador em 1 minuto. Adeus!"
             except Exception as e:
-                print(f"Error trying to shutdown: {e}")
+                logger.error(f"Error trying to shutdown: {e}")
                 return "Ocorreu um erro ao tentar executar o comando de desligamento."
         else:
             return "Ação de desligamento cancelada."
@@ -124,7 +125,7 @@ class AssistantTools:
                 subprocess.run(["shutdown", "-c"])
             return "Desligamento cancelado."
         except Exception as e:
-            print(f"Error trying to cancel shutdown: {e}")
+            logger.error(f"Error trying to cancel shutdown: {e}")
             return "Ocorreu um erro ao tentar cancelar o comando de desligamento."
 
     def _perform_web_search(self, search_query: str) -> str:
@@ -137,7 +138,7 @@ class AssistantTools:
             result = self.web_search_agent.run_search_crew(search_query)
             return f"A pesquisa retornou o seguinte: {str(result)}"
         except Exception as e:
-            print(f"Error performing web search for '{search_query}': {e}")
+            logger.error(f"Error performing web search for '{search_query}': {e}")
             return "Desculpe, ocorreu um erro ao realizar a pesquisa na web."
 
     def _quit(self) -> AssistantSignal:
