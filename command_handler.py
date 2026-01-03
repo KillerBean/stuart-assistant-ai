@@ -78,7 +78,7 @@ class CommandHandler:
             argument = argument.rstrip(string.punctuation)
                 
             return argument
-        except Exception as e:
+        except (AttributeError, TypeError, ValueError) as e:
             print(f"Error extracting argument: {e}")
             return ""
 
@@ -116,7 +116,7 @@ class CommandHandler:
                 matched_keyword = match.group(0)
                 result = handler(command, tool_func, matched_keyword)
             return result, False
-        except Exception as e:
+        except (AttributeError, TypeError, ValueError) as e:
             print(f"Error processing command with new router: {e}")
             self.speak("Desculpe, ocorreu um erro ao processar o comando.")
             return None, True
