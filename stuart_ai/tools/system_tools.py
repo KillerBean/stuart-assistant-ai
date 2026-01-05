@@ -174,7 +174,7 @@ class AssistantTools:
         await self.speak(f"Ok, pesquisando na web sobre {search_query}. Isso pode levar um momento.")
         try:
             # Agent run might be blocking, run in thread
-            result = await asyncio.to_thread(self.web_search_agent.run_search_crew, search_query)
+            result = await asyncio.to_thread(self.web_search_agent.run, search_query)
             return f"A pesquisa retornou o seguinte: {str(result)}"
         except Exception as e:
             logger.error(f"Error performing web search for '{search_query}': {e}")

@@ -165,7 +165,7 @@ async def test_perform_web_search_success(assistant_tools_fixture, mocker):
     tools, mock_speak, _, mock_web_search_agent, _ = assistant_tools_fixture
     
     query = "test query"
-    mock_web_search_agent.run_search_crew.return_value = "Search Result"
+    mock_web_search_agent.run.return_value = "Search Result"
     
     result = await tools._perform_web_search(query)
     
