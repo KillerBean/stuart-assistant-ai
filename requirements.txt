@@ -232,3 +232,4 @@ yarl==1.22.0
 youtube-transcript-api==1.2.3
 zipp==3.23.0
 zstandard==0.25.0
+ics==0.7.2

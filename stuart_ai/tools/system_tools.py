@@ -9,6 +9,7 @@ import wikipedia
 
 from stuart_ai.agents.web_search_agent import WebSearchAgent
 from stuart_ai.agents.rag.rag_agent import LocalRAGAgent
+from stuart_ai.agents.productivity.calendar_manager import CalendarManager
 from stuart_ai.core.enums import AssistantSignal
 from stuart_ai.core.logger import logger
 
@@ -26,6 +27,31 @@ class AssistantTools:
         self.app_aliases = app_aliases
         self.web_search_agent = web_search_agent
         self.local_rag_agent = local_rag_agent
+        self.calendar_manager = CalendarManager()
+
+    async def _add_calendar_event(self, args: dict | str) -> str:
+        """Agendar um compromisso."""
+        try:
+            if isinstance(args, str):
+                # Fallback if LLM returns string
+                return "Preciso que você especifique o título e a hora separadamente."
+            
+            title = args.get("title")
+            datetime_str = args.get("datetime")
+            
+            if not title or not datetime_str:
+                return "Preciso do nome do evento e da data/hora."
+
+            await self.speak(f"Agendando {title} para {datetime_str}...")
+            return self.calendar_manager.add_event(title, datetime_str)
+        except Exception as e:
+            logger.error(f"Error adding event: {e}")
+            return "Tive um problema ao salvar o evento."
+
+    async def _check_calendar(self, date_str: str = None) -> str:
+        """Consultar agenda."""
+        await self.speak("Consultando sua agenda...")
+        return self.calendar_manager.list_events(date_str)
 
     async def _search_local_files(self, query: str) -> str:
         """Pesquisa nos arquivos locais indexados. Use quando o usuário perguntar sobre documentos, arquivos ou 'o que diz o arquivo X'."""

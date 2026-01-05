@@ -51,6 +51,8 @@ class CommandHandler:
             "web_search": SimpleTool(name='_perform_web_search', func=assistant_tools._perform_web_search),
             "search_local_files": SimpleTool(name='_search_local_files', func=assistant_tools._search_local_files),
             "index_file": SimpleTool(name='_index_file', func=assistant_tools._index_file),
+            "add_event": SimpleTool(name='_add_calendar_event', func=assistant_tools._add_calendar_event),
+            "check_calendar": SimpleTool(name='_check_calendar', func=assistant_tools._check_calendar),
             "open_app": SimpleTool(name='_open_app', func=assistant_tools._open_app),
             "shutdown_computer": SimpleTool(name='_shutdown_computer', func=assistant_tools._shutdown_computer),
             "cancel_shutdown": SimpleTool(name='_cancel_shutdown', func=assistant_tools._cancel_shutdown),
