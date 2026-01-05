@@ -3,6 +3,7 @@ import asyncio
 from typing import Optional, Dict, Any
 from stuart_ai.llm.ollama_llm import OllamaLLM
 from stuart_ai.core.logger import logger
+from stuart_ai.core.exceptions import LLMConnectionError, LLMResponseError
 
 class SemanticRouter:
     def __init__(self, llm):
@@ -54,10 +55,9 @@ class SemanticRouter:
             cleaned_response = response.strip().replace("```json", "").replace("```", "").strip()
             
             return json.loads(cleaned_response)
-        except json.JSONDecodeError:
-            logger.error(f"Failed to decode JSON from router response: {response}")
-            # Fallback to general chat or search if parsing fails
-            return {"tool": "web_search", "args": command}
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to decode JSON from router response: {e}")
+            raise LLMResponseError(f"Invalid JSON response from LLM: {cleaned_response}")
         except Exception as e:
             logger.error(f"Error in semantic routing: {e}")
-            return {"tool": "general_chat", "args": None}
+            raise LLMConnectionError(f"Failed to communicate with LLM: {e}")

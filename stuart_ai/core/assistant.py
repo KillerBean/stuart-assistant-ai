@@ -13,6 +13,7 @@ from stuart_ai.services.command_handler import CommandHandler
 from stuart_ai.core.enums import AssistantSignal
 from stuart_ai.core.config import settings
 from stuart_ai.core.logger import logger
+from stuart_ai.core.exceptions import AudioDeviceError, TranscriptionError
 
 from stuart_ai.agents.web_search_agent import WebSearchAgent
 
@@ -112,10 +113,13 @@ class Assistant:
         await self.speak(prompt)
         try:
             def listen_act():
-                with sr.Microphone() as source:
-                    logger.info("Listening for confirmation...")
-                    self.recognizer.adjust_for_ambient_noise(source, duration=1)
-                    return self.recognizer.listen(source, timeout=5, phrase_time_limit=3)
+                try:
+                    with sr.Microphone() as source:
+                        logger.info("Listening for confirmation...")
+                        self.recognizer.adjust_for_ambient_noise(source, duration=1)
+                        return self.recognizer.listen(source, timeout=5, phrase_time_limit=3)
+                except OSError as e:
+                    raise AudioDeviceError(f"Could not access microphone: {e}")
 
             audio = await asyncio.to_thread(listen_act)
 
@@ -127,7 +131,10 @@ class Assistant:
                     elif isinstance(audio, sr.AudioData):
                         f.write(audio.get_wav_data())
                 
-                result = await asyncio.to_thread(self.model.transcribe, temp_file, language="pt", fp16=False)
+                try:
+                    result = await asyncio.to_thread(self.model.transcribe, temp_file, language="pt", fp16=False)
+                except Exception as e:
+                    raise TranscriptionError(f"Transcription failed: {e}")
             
             response_text = str(result['text']).lower().strip()
             logger.info(f"Confirmation response: '{response_text}'")
@@ -135,6 +142,14 @@ class Assistant:
 
         except (sr.WaitTimeoutError, sr.UnknownValueError):
             logger.warning("Could not understand confirmation.")
+            return False
+        except AudioDeviceError as e:
+            logger.error(f"Audio device error during confirmation: {e}")
+            await self.speak("Desculpe, não consegui acessar o microfone.")
+            return False
+        except TranscriptionError as e:
+            logger.error(f"Transcription error during confirmation: {e}")
+            await self.speak("Desculpe, tive um problema ao processar sua voz.")
             return False
         except Exception as e:
             logger.error(f"An error occurred during confirmation: {e}")
@@ -155,18 +170,29 @@ class Assistant:
         logger.info("Adjusting for ambient noise...")
         # Initial adjustment
         def adjust():
-            with sr.Microphone() as source:
-                self.recognizer.adjust_for_ambient_noise(source, duration=1)
+            try:
+                with sr.Microphone() as source:
+                    self.recognizer.adjust_for_ambient_noise(source, duration=1)
+            except OSError as e:
+                raise AudioDeviceError(f"Could not access microphone: {e}")
         
-        await asyncio.to_thread(adjust)
-        
+        try:
+            await asyncio.to_thread(adjust)
+        except AudioDeviceError as e:
+            logger.critical(f"Initial microphone access failed: {e}")
+            await self.speak("Erro crítico: Não consegui encontrar um microfone funcional.")
+            return
+
         logger.info(f"Listening for keyword '{self.keyword}'...")
         
         while True:
             try:
                 def listen_loop():
-                    with sr.Microphone() as source:
-                        return self.recognizer.listen(source)
+                    try:
+                        with sr.Microphone() as source:
+                            return self.recognizer.listen(source)
+                    except OSError as e:
+                        raise AudioDeviceError(f"Could not access microphone: {e}")
 
                 audio = await asyncio.to_thread(listen_loop)
                 logger.debug("Audio captured, processing...")
@@ -180,7 +206,10 @@ class Assistant:
                             f.write(audio.get_wav_data())
                     
                     # Transcribe using Whisper
-                    result = await asyncio.to_thread(self.model.transcribe, temp_file, language="pt", fp16=False)
+                    try:
+                        result = await asyncio.to_thread(self.model.transcribe, temp_file, language="pt", fp16=False)
+                    except Exception as e:
+                        raise TranscriptionError(f"Transcription failed: {e}")
                     
                 text = str(result['text']).strip()
                 logger.debug(f"Heard: {text}")
@@ -194,6 +223,13 @@ class Assistant:
                 logger.debug("Listening timed out, listening again...")
             except sr.UnknownValueError:
                 logger.debug("Could not understand audio, listening again...")
+            except AudioDeviceError as e:
+                logger.error(f"Audio device error: {e}")
+                await self.speak("Tive um problema com o microfone. Tentando reconectar...")
+                await asyncio.sleep(5)
+            except TranscriptionError as e:
+                logger.error(f"Transcription error: {e}")
+                await asyncio.sleep(1)
             except Exception as e:
                 logger.error(f"An unexpected error occurred: {e}")
                 await asyncio.sleep(1) # Prevent tight error loop

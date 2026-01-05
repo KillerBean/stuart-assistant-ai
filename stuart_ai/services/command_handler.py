@@ -8,6 +8,7 @@ from stuart_ai.core.enums import AssistantSignal
 from stuart_ai.core.logger import logger
 from stuart_ai.services.semantic_router import SemanticRouter
 from stuart_ai.core.memory import ConversationMemory
+from stuart_ai.core.exceptions import LLMResponseError, LLMConnectionError
 
 # A simple, custom tool class to avoid crewai's decorator issues
 class SimpleTool:
@@ -143,9 +144,18 @@ class CommandHandler:
         logger.info(f"--- Roteando comando '{command}' via Semantic Router ---")
         
         history = self.memory.get_formatted_history()
-        router_response = await self.semantic_router.route(command, history_str=history)
-        tool_name = router_response.get("tool")
-        args = router_response.get("args")
+        try:
+            router_response = await self.semantic_router.route(command, history_str=history)
+            tool_name = router_response.get("tool")
+            args = router_response.get("args")
+        except LLMResponseError:
+            # Fallback to web search if LLM returns garbage JSON
+            tool_name = "web_search"
+            args = command
+        except LLMConnectionError:
+            # Fallback to general chat if LLM is offline
+            tool_name = "general_chat"
+            args = None
 
         if tool_name == "general_chat":
              # Simple fallback for now

@@ -44,10 +44,9 @@ async def test_route_json_decode_error(semantic_router_fixture):
     mock_response = 'Not a JSON'
     mock_llm.call.return_value = mock_response
     
-    result = await router.route("invalid command")
-    
-    # Should fallback to web_search
-    assert result == {"tool": "web_search", "args": "invalid command"}
+    from stuart_ai.core.exceptions import LLMResponseError
+    with pytest.raises(LLMResponseError):
+        await router.route("invalid command")
 
 @pytest.mark.asyncio
 async def test_route_llm_exception(semantic_router_fixture):
@@ -56,8 +55,7 @@ async def test_route_llm_exception(semantic_router_fixture):
     # Mock exception during LLM call
     mock_llm.call.side_effect = Exception("LLM Error")
     
-    result = await router.route("any command")
-    
-    # Should fallback to general_chat on generic error
-    assert result == {"tool": "general_chat", "args": None}
+    from stuart_ai.core.exceptions import LLMConnectionError
+    with pytest.raises(LLMConnectionError):
+        await router.route("any command")
 

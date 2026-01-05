@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, AsyncMock
 from stuart_ai.services.command_handler import CommandHandler, SimpleTool
 from stuart_ai.agents.web_search_agent import WebSearchAgent
 from stuart_ai.core.enums import AssistantSignal
+from stuart_ai.core.exceptions import LLMResponseError, LLMConnectionError
 
 @pytest.fixture
 def command_handler_fixture(mocker):
@@ -138,3 +139,27 @@ async def test_extract_argument_removes_articles(command_handler_fixture):
     keyword = "pesquise sobre"
     argument = handler._extract_argument(command, keyword)
     assert argument == "universo"
+
+@pytest.mark.asyncio
+async def test_semantic_route_fallback_on_response_error(command_handler_fixture):
+    """Tests fallback to web_search when LLM returns invalid JSON."""
+    handler, mock_speak, mock_router = command_handler_fixture
+    
+    mock_router.route.side_effect = LLMResponseError("Invalid JSON")
+    handler.tools["web_search"].run.return_value = "Resultado da web."
+
+    await handler.process("qual a cotação do dólar?")
+    
+    handler.tools["web_search"].run.assert_called_once_with("qual a cotação do dólar?")
+    mock_speak.assert_called_once_with("Resultado da web.")
+
+@pytest.mark.asyncio
+async def test_semantic_route_fallback_on_connection_error(command_handler_fixture):
+    """Tests fallback to general_chat when LLM is offline."""
+    handler, mock_speak, mock_router = command_handler_fixture
+    
+    mock_router.route.side_effect = LLMConnectionError("Connection failed")
+
+    await handler.process("qualquer coisa")
+    
+    mock_speak.assert_called_once_with("Entendi. Como posso ajudar com isso?")
