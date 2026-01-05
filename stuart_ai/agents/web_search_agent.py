@@ -3,7 +3,7 @@ from crewai import Agent, Task, Crew, LLM
 from crewai.tools import BaseTool
 from langchain_community.tools import DuckDuckGoSearchRun
 
-from stuart_ai.LLM.ollama_llm import OllamaLLM
+from stuart_ai.llm.ollama_llm import OllamaLLM
 
 
 class DuckDuckGoSearchTool(BaseTool):

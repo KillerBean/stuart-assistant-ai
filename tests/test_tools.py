@@ -4,7 +4,7 @@ import wikipedia
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from stuart_ai.tools import AssistantTools
+from stuart_ai.tools.system_tools import AssistantTools
 from stuart_ai.agents.web_search_agent import WebSearchAgent
 from stuart_ai.core.enums import AssistantSignal
 
@@ -40,7 +40,7 @@ async def test_get_time(assistant_tools_fixture, mocker):
     
     fixed_time = dt(2023, 10, 27, 14, 45)
     # Mock datetime where it is used in tools module
-    mocker.patch('stuart_ai.tools.datetime').now.return_value = fixed_time
+    mocker.patch('stuart_ai.tools.system_tools.datetime').now.return_value = fixed_time
     
     result = await tools._get_time()
     
@@ -87,8 +87,8 @@ async def test_search_wikipedia_success(assistant_tools_fixture, mocker):
     tools, _, _, _ = assistant_tools_fixture
     
     # Since we use asyncio.to_thread, we mock the underlying blocking function
-    mocker.patch('stuart_ai.tools.wikipedia.summary', return_value="Python é uma linguagem.")
-    mocker.patch('stuart_ai.tools.wikipedia.set_lang')
+    mocker.patch('stuart_ai.tools.system_tools.wikipedia.summary', return_value="Python é uma linguagem.")
+    mocker.patch('stuart_ai.tools.system_tools.wikipedia.set_lang')
 
     result = await tools._search_wikipedia("Python")
     
@@ -98,8 +98,8 @@ async def test_search_wikipedia_success(assistant_tools_fixture, mocker):
 async def test_search_wikipedia_page_error(assistant_tools_fixture, mocker):
     tools, _, _, _ = assistant_tools_fixture
     
-    mocker.patch('stuart_ai.tools.wikipedia.summary', side_effect=wikipedia.exceptions.PageError("page not found"))
-    mocker.patch('stuart_ai.tools.wikipedia.set_lang')
+    mocker.patch('stuart_ai.tools.system_tools.wikipedia.summary', side_effect=wikipedia.exceptions.PageError("page not found"))
+    mocker.patch('stuart_ai.tools.system_tools.wikipedia.set_lang')
     
     result = await tools._search_wikipedia("TermoInexistente")
     assert result == "Desculpe, não encontrei nenhum resultado para TermoInexistente."
@@ -133,8 +133,8 @@ async def test_get_weather_success(assistant_tools_fixture, mocker):
 async def test_open_app(assistant_tools_fixture, mocker):
     tools, _, _, _ = assistant_tools_fixture
     
-    mocker.patch('stuart_ai.tools.platform.system', return_value="Linux")
-    mock_popen = mocker.patch('stuart_ai.tools.subprocess.Popen')
+    mocker.patch('stuart_ai.tools.system_tools.platform.system', return_value="Linux")
+    mock_popen = mocker.patch('stuart_ai.tools.system_tools.subprocess.Popen')
     
     result = await tools._open_app("firefox")
     
@@ -147,8 +147,8 @@ async def test_shutdown_computer_confirmed(assistant_tools_fixture, mocker):
     tools, _, mock_confirm, _ = assistant_tools_fixture
     
     mock_confirm.return_value = True
-    mock_run = mocker.patch('stuart_ai.tools.subprocess.run')
-    mocker.patch('stuart_ai.tools.platform.system', return_value="Linux")
+    mock_run = mocker.patch('stuart_ai.tools.system_tools.subprocess.run')
+    mocker.patch('stuart_ai.tools.system_tools.platform.system', return_value="Linux")
     
     result = await tools._shutdown_computer()
     

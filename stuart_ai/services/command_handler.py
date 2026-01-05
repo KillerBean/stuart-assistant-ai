@@ -1,9 +1,9 @@
 import re
 import string
 import asyncio
-from stuart_ai.LLM.ollama_llm import OllamaLLM
+from stuart_ai.llm.ollama_llm import OllamaLLM
 from stuart_ai.agents.web_search_agent import WebSearchAgent
-from stuart_ai.tools import AssistantTools
+from stuart_ai.tools.system_tools import AssistantTools
 from stuart_ai.core.enums import AssistantSignal
 from stuart_ai.core.logger import logger
 from stuart_ai.services.semantic_router import SemanticRouter

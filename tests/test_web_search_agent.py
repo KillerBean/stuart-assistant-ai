@@ -1,5 +1,5 @@
 import pytest
-from stuart_ai.LLM.ollama_llm import OllamaLLM
+from stuart_ai.llm.ollama_llm import OllamaLLM
 from stuart_ai.agents.web_search_agent import WebSearchAgent, DuckDuckGoSearchTool
 from langchain_community.tools import DuckDuckGoSearchRun
 

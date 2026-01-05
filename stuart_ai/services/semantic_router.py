@@ -1,7 +1,7 @@
 import json
 import asyncio
 from typing import Optional, Dict, Any
-from stuart_ai.LLM.ollama_llm import OllamaLLM
+from stuart_ai.llm.ollama_llm import OllamaLLM
 from stuart_ai.core.logger import logger
 
 class SemanticRouter:
