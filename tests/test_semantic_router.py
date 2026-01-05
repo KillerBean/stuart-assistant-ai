@@ -5,12 +5,11 @@ from stuart_ai.services.semantic_router import SemanticRouter
 
 @pytest.fixture
 def semantic_router_fixture(mocker):
-    # Mock OllamaLLM
-    mock_llm_class = mocker.patch("stuart_ai.services.semantic_router.OllamaLLM")
-    mock_llm_instance = mock_llm_class.return_value.get_llm_instance.return_value
+    # Mock LLM
+    mock_llm = mocker.MagicMock()
     
-    router = SemanticRouter()
-    return router, mock_llm_instance
+    router = SemanticRouter(llm=mock_llm)
+    return router, mock_llm
 
 @pytest.mark.asyncio
 async def test_route_success(semantic_router_fixture):

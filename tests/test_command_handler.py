@@ -14,19 +14,21 @@ def command_handler_fixture(mocker):
     mock_web_search_agent = mocker.MagicMock(spec=WebSearchAgent)
     app_aliases = {"browser": "firefox"}
 
-    # Mock OllamaLLM to prevent actual instantiation
-    mocker.patch("stuart_ai.services.command_handler.OllamaLLM")
+    # Mock SemanticRouter
+    mock_router = mocker.MagicMock()
+    mock_router.route = AsyncMock()
 
-    # Mock SemanticRouter to prevent actual LLM calls
-    mock_router = mocker.patch("stuart_ai.services.command_handler.SemanticRouter")
-    mock_router_instance = mock_router.return_value
-    mock_router_instance.route = AsyncMock()
+    # Mock ConversationMemory
+    mock_memory = mocker.MagicMock()
+    mock_memory.get_formatted_history.return_value = ""
 
     handler = CommandHandler(
         speak_func=mock_speak_func,
         confirmation_func=mock_confirm_func,
         app_aliases=app_aliases,
-        web_search_agent=mock_web_search_agent
+        web_search_agent=mock_web_search_agent,
+        semantic_router=mock_router,
+        memory=mock_memory
     )
 
     # We need to mock the tools inside the handler to isolate logic
@@ -44,7 +46,7 @@ def command_handler_fixture(mocker):
     handler.tools["open_app"].run.return_value = "Aplicativo aberto."
     handler.tools["quit"].run.return_value = AssistantSignal.QUIT
 
-    return handler, mock_speak_func, mock_router_instance
+    return handler, mock_speak_func, mock_router
 
 @pytest.mark.asyncio
 async def test_process_empty_command(command_handler_fixture):
