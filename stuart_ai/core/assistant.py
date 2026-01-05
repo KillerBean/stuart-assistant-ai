@@ -16,6 +16,7 @@ from stuart_ai.core.logger import logger
 from stuart_ai.core.exceptions import AudioDeviceError, TranscriptionError
 
 from stuart_ai.agents.web_search_agent import WebSearchAgent
+from stuart_ai.agents.rag.rag_agent import LocalRAGAgent
 
 
 class Assistant:
@@ -23,6 +24,7 @@ class Assistant:
         self,
         llm,
         web_search_agent: WebSearchAgent,
+        local_rag_agent: LocalRAGAgent,
         semantic_router,
         memory,
         whisper_model,
@@ -52,12 +54,14 @@ class Assistant:
 
         self.llm = llm
         self.web_search_agent = web_search_agent
+        self.local_rag_agent = local_rag_agent
 
         self.command_handler = CommandHandler(
             self.speak,
             self.listen_for_confirmation,
             self.app_aliases,
             self.web_search_agent,
+            self.local_rag_agent,
             semantic_router,
             memory
         )

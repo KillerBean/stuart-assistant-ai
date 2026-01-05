@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     llm_port: int = 11434
     llm_model: str = "ollama/gemma3:latest"
     llm_temperature: float = 0.7
+    embedding_model: str = "nomic-embed-text"
     
     # Memory Configuration
     memory_window_size: int = 10

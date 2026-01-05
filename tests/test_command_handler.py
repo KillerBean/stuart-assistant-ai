@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import MagicMock, AsyncMock
 from stuart_ai.services.command_handler import CommandHandler, SimpleTool
 from stuart_ai.agents.web_search_agent import WebSearchAgent
+from stuart_ai.agents.rag.rag_agent import LocalRAGAgent
 from stuart_ai.core.enums import AssistantSignal
 from stuart_ai.core.exceptions import LLMResponseError, LLMConnectionError
 
@@ -13,6 +14,7 @@ def command_handler_fixture(mocker):
     mock_speak_func = AsyncMock()
     mock_confirm_func = AsyncMock()
     mock_web_search_agent = mocker.MagicMock(spec=WebSearchAgent)
+    mock_local_rag_agent = mocker.MagicMock(spec=LocalRAGAgent)
     app_aliases = {"browser": "firefox"}
 
     # Mock SemanticRouter
@@ -28,6 +30,7 @@ def command_handler_fixture(mocker):
         confirmation_func=mock_confirm_func,
         app_aliases=app_aliases,
         web_search_agent=mock_web_search_agent,
+        local_rag_agent=mock_local_rag_agent,
         semantic_router=mock_router,
         memory=mock_memory
     )

@@ -1,3 +1,4 @@
+import os
 import platform
 import subprocess
 import asyncio
@@ -7,6 +8,7 @@ import aiohttp
 import wikipedia
 
 from stuart_ai.agents.web_search_agent import WebSearchAgent
+from stuart_ai.agents.rag.rag_agent import LocalRAGAgent
 from stuart_ai.core.enums import AssistantSignal
 from stuart_ai.core.logger import logger
 
@@ -18,11 +20,42 @@ class AssistantTools:
     Each tool should return a string to be spoken by the command handler.
     """
 
-    def __init__(self, speak_func, confirmation_func, app_aliases, web_search_agent: WebSearchAgent):
+    def __init__(self, speak_func, confirmation_func, app_aliases, web_search_agent: WebSearchAgent, local_rag_agent: LocalRAGAgent):
         self.speak = speak_func
         self.confirm = confirmation_func
         self.app_aliases = app_aliases
         self.web_search_agent = web_search_agent
+        self.local_rag_agent = local_rag_agent
+
+    async def _search_local_files(self, query: str) -> str:
+        """Pesquisa nos arquivos locais indexados. Use quando o usuário perguntar sobre documentos, arquivos ou 'o que diz o arquivo X'."""
+        if not query:
+            return "O que você gostaria de pesquisar nos seus arquivos?"
+        
+        await self.speak("Pesquisando nos seus arquivos...")
+        try:
+            return await self.local_rag_agent.run(query)
+        except Exception as e:
+            logger.error(f"Error querying local files: {e}")
+            return "Desculpe, tive um erro ao consultar seus arquivos."
+
+    async def _index_file(self, file_path: str) -> str:
+        """Adiciona um arquivo ao índice de busca local. Use quando o usuário pedir para 'ler', 'aprender' ou 'indexar' um arquivo."""
+        if not file_path:
+             return "Qual arquivo você gostaria que eu aprendesse?"
+        
+        # Simple cleanup of path if user spoke it (though usually this tool argument comes from semantic router resolving path)
+        file_path = file_path.strip().strip('"').strip("'")
+        
+        await self.speak(f"Processando o arquivo {os.path.basename(file_path)}...")
+        try:
+            # We run the blocking add_document in a thread
+            await asyncio.to_thread(self.local_rag_agent.document_store.add_document, file_path)
+            return f"Arquivo {os.path.basename(file_path)} aprendido com sucesso!"
+        except Exception as e:
+            logger.error(f"Error indexing file {file_path}: {e}")
+            return f"Não consegui ler o arquivo. Verifique se o caminho está correto."
+
 
     async def _get_time(self) -> str:
         """Retorna a hora e os minutos atuais. Use esta ferramenta sempre que o usuário perguntar as horas."""

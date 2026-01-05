@@ -29,6 +29,8 @@ class SemanticRouter:
         - "joke": Pedidos de piada.
         - "wikipedia": Perguntas de definição ("O que é", "Quem foi"). Argumento: "query".
         - "web_search": Perguntas sobre atualidades, notícias ou buscas complexas. Argumento: "query".
+        - "search_local_files": Perguntas sobre seus documentos ou arquivos locais. Argumento: "query".
+        - "index_file": Pedido para ler/aprender um arquivo novo. Argumento: "file_path".
         - "general_chat": Conversa casual, cumprimentos ou perguntas que você mesmo pode responder sem ferramentas.
         
         Responda APENAS um objeto JSON no seguinte formato, sem markdown ou explicações:

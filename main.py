@@ -5,6 +5,8 @@ from stuart_ai.core.assistant import Assistant
 from stuart_ai.core.logger import logger
 from stuart_ai.llm.ollama_llm import OllamaLLM
 from stuart_ai.agents.web_search_agent import WebSearchAgent
+from stuart_ai.agents.rag.document_store import DocumentStore
+from stuart_ai.agents.rag.rag_agent import LocalRAGAgent
 from stuart_ai.services.semantic_router import SemanticRouter
 from stuart_ai.core.memory import ConversationMemory
 
@@ -18,6 +20,10 @@ async def main():
     # 2. Initialize Agents & Tools
     logger.info("Initializing Web Search Agent...")
     web_search_agent = WebSearchAgent(llm=llm)
+
+    logger.info("Initializing Local RAG Agent...")
+    document_store = DocumentStore()
+    local_rag_agent = LocalRAGAgent(llm=llm, document_store=document_store)
     
     # 3. Initialize Routing & Memory
     logger.info("Initializing Semantic Router and Memory...")
@@ -36,6 +42,7 @@ async def main():
     assistant = Assistant(
         llm=llm,
         web_search_agent=web_search_agent,
+        local_rag_agent=local_rag_agent,
         semantic_router=semantic_router,
         memory=memory,
         whisper_model=whisper_model,

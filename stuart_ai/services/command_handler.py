@@ -3,6 +3,7 @@ import string
 import asyncio
 from stuart_ai.llm.ollama_llm import OllamaLLM
 from stuart_ai.agents.web_search_agent import WebSearchAgent
+from stuart_ai.agents.rag.rag_agent import LocalRAGAgent
 from stuart_ai.tools.system_tools import AssistantTools
 from stuart_ai.core.enums import AssistantSignal
 from stuart_ai.core.logger import logger
@@ -24,11 +25,12 @@ class CommandHandler:
     Handles the processing of user commands using a fast, keyword-based routing system and a Semantic Router.
     """
 
-    def __init__(self, speak_func, confirmation_func, app_aliases, web_search_agent: WebSearchAgent, semantic_router: SemanticRouter, memory: ConversationMemory):
+    def __init__(self, speak_func, confirmation_func, app_aliases, web_search_agent: WebSearchAgent, local_rag_agent: LocalRAGAgent, semantic_router: SemanticRouter, memory: ConversationMemory):
         self.speak = speak_func
         self.confirm = confirmation_func
         self.app_aliases = app_aliases
         self.web_search_agent = web_search_agent 
+        self.local_rag_agent = local_rag_agent
         self.semantic_router = semantic_router
         self.memory = memory
 
@@ -36,7 +38,8 @@ class CommandHandler:
             speak_func=self.speak,
             confirmation_func=self.confirm,
             app_aliases=self.app_aliases,
-            web_search_agent=self.web_search_agent
+            web_search_agent=self.web_search_agent,
+            local_rag_agent=self.local_rag_agent
         )
 
         # Tools available
@@ -46,6 +49,8 @@ class CommandHandler:
             "wikipedia": SimpleTool(name='_search_wikipedia', func=assistant_tools._search_wikipedia),
             "weather": SimpleTool(name='_get_weather', func=assistant_tools._get_weather),
             "web_search": SimpleTool(name='_perform_web_search', func=assistant_tools._perform_web_search),
+            "search_local_files": SimpleTool(name='_search_local_files', func=assistant_tools._search_local_files),
+            "index_file": SimpleTool(name='_index_file', func=assistant_tools._index_file),
             "open_app": SimpleTool(name='_open_app', func=assistant_tools._open_app),
             "shutdown_computer": SimpleTool(name='_shutdown_computer', func=assistant_tools._shutdown_computer),
             "cancel_shutdown": SimpleTool(name='_cancel_shutdown', func=assistant_tools._cancel_shutdown),

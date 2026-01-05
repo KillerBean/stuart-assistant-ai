@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from stuart_ai.tools.system_tools import AssistantTools
 from stuart_ai.agents.web_search_agent import WebSearchAgent
+from stuart_ai.agents.rag.rag_agent import LocalRAGAgent
 from stuart_ai.core.enums import AssistantSignal
 
 
@@ -17,6 +18,8 @@ def assistant_tools_fixture(mocker):
     mock_speak_func = AsyncMock()
     mock_confirm_func = AsyncMock()
     mock_web_search_agent = mocker.MagicMock(spec=WebSearchAgent)
+    mock_local_rag_agent = mocker.MagicMock(spec=LocalRAGAgent)
+    mock_local_rag_agent.document_store = mocker.MagicMock()
     app_aliases = {
         "browser": {
             "Linux": "firefox",
@@ -29,14 +32,15 @@ def assistant_tools_fixture(mocker):
         speak_func=mock_speak_func,
         confirmation_func=mock_confirm_func,
         app_aliases=app_aliases,
-        web_search_agent=mock_web_search_agent
+        web_search_agent=mock_web_search_agent,
+        local_rag_agent=mock_local_rag_agent
     )
     
-    return tools, mock_speak_func, mock_confirm_func, mock_web_search_agent
+    return tools, mock_speak_func, mock_confirm_func, mock_web_search_agent, mock_local_rag_agent
 
 @pytest.mark.asyncio
 async def test_get_time(assistant_tools_fixture, mocker):
-    tools, _, _, _ = assistant_tools_fixture
+    tools, _, _, _, _ = assistant_tools_fixture
     
     fixed_time = dt(2023, 10, 27, 14, 45)
     # Mock datetime where it is used in tools module
@@ -48,7 +52,7 @@ async def test_get_time(assistant_tools_fixture, mocker):
 
 @pytest.mark.asyncio
 async def test_tell_joke_success(assistant_tools_fixture, mocker):
-    tools, _, _, _ = assistant_tools_fixture
+    tools, _, _, _, _ = assistant_tools_fixture
     
     # Mock aiohttp ClientSession
     mock_response = AsyncMock()
@@ -75,7 +79,7 @@ async def test_tell_joke_success(assistant_tools_fixture, mocker):
 
 @pytest.mark.asyncio
 async def test_tell_joke_error(assistant_tools_fixture, mocker):
-    tools, _, _, _ = assistant_tools_fixture
+    tools, _, _, _, _ = assistant_tools_fixture
     
     mocker.patch('aiohttp.ClientSession', side_effect=Exception("API Error"))
     
@@ -84,7 +88,7 @@ async def test_tell_joke_error(assistant_tools_fixture, mocker):
 
 @pytest.mark.asyncio
 async def test_search_wikipedia_success(assistant_tools_fixture, mocker):
-    tools, _, _, _ = assistant_tools_fixture
+    tools, _, _, _, _ = assistant_tools_fixture
     
     # Since we use asyncio.to_thread, we mock the underlying blocking function
     mocker.patch('stuart_ai.tools.system_tools.wikipedia.summary', return_value="Python é uma linguagem.")
@@ -96,7 +100,7 @@ async def test_search_wikipedia_success(assistant_tools_fixture, mocker):
 
 @pytest.mark.asyncio
 async def test_search_wikipedia_page_error(assistant_tools_fixture, mocker):
-    tools, _, _, _ = assistant_tools_fixture
+    tools, _, _, _, _ = assistant_tools_fixture
     
     mocker.patch('stuart_ai.tools.system_tools.wikipedia.summary', side_effect=wikipedia.exceptions.PageError("page not found"))
     mocker.patch('stuart_ai.tools.system_tools.wikipedia.set_lang')
@@ -106,7 +110,7 @@ async def test_search_wikipedia_page_error(assistant_tools_fixture, mocker):
 
 @pytest.mark.asyncio
 async def test_get_weather_success(assistant_tools_fixture, mocker):
-    tools, _, _, _ = assistant_tools_fixture
+    tools, _, _, _, _ = assistant_tools_fixture
     
     weather_info = "São Paulo: +25°C"
     mock_response = AsyncMock()
@@ -131,7 +135,7 @@ async def test_get_weather_success(assistant_tools_fixture, mocker):
 
 @pytest.mark.asyncio
 async def test_open_app(assistant_tools_fixture, mocker):
-    tools, _, _, _ = assistant_tools_fixture
+    tools, _, _, _, _ = assistant_tools_fixture
     
     mocker.patch('stuart_ai.tools.system_tools.platform.system', return_value="Linux")
     mock_popen = mocker.patch('stuart_ai.tools.system_tools.subprocess.Popen')
@@ -144,7 +148,7 @@ async def test_open_app(assistant_tools_fixture, mocker):
 
 @pytest.mark.asyncio
 async def test_shutdown_computer_confirmed(assistant_tools_fixture, mocker):
-    tools, _, mock_confirm, _ = assistant_tools_fixture
+    tools, _, mock_confirm, _, _ = assistant_tools_fixture
     
     mock_confirm.return_value = True
     mock_run = mocker.patch('stuart_ai.tools.system_tools.subprocess.run')
@@ -158,7 +162,7 @@ async def test_shutdown_computer_confirmed(assistant_tools_fixture, mocker):
 
 @pytest.mark.asyncio
 async def test_perform_web_search_success(assistant_tools_fixture, mocker):
-    tools, mock_speak, _, mock_web_search_agent = assistant_tools_fixture
+    tools, mock_speak, _, mock_web_search_agent, _ = assistant_tools_fixture
     
     query = "test query"
     mock_web_search_agent.run_search_crew.return_value = "Search Result"
@@ -170,9 +174,39 @@ async def test_perform_web_search_success(assistant_tools_fixture, mocker):
 
 @pytest.mark.asyncio
 async def test_quit(assistant_tools_fixture):
-    tools, mock_speak, _, _ = assistant_tools_fixture
+    tools, mock_speak, _, _, _ = assistant_tools_fixture
     
     result = await tools._quit()
     
     mock_speak.assert_called_once()
     assert result == AssistantSignal.QUIT
+
+@pytest.mark.asyncio
+async def test_search_local_files(assistant_tools_fixture):
+    tools, mock_speak, _, _, mock_rag_agent = assistant_tools_fixture
+    
+    mock_rag_agent.run.return_value = "Conteúdo do arquivo."
+    result = await tools._search_local_files("resumo projeto")
+    
+    mock_speak.assert_called_once_with("Pesquisando nos seus arquivos...")
+    mock_rag_agent.run.assert_called_once_with("resumo projeto")
+    assert result == "Conteúdo do arquivo."
+
+@pytest.mark.asyncio
+async def test_index_file(assistant_tools_fixture, mocker):
+    tools, mock_speak, _, _, mock_rag_agent = assistant_tools_fixture
+    
+    # Mock os.path.basename
+    mocker.patch('stuart_ai.tools.system_tools.os.path.basename', return_value="doc.txt")
+    
+    result = await tools._index_file("/path/to/doc.txt")
+    
+    mock_speak.assert_called_once_with("Processando o arquivo doc.txt...")
+    # Since we use asyncio.to_thread, we check if the method was called
+    # However, mocking asyncio.to_thread or the method directly is tricky if we don't mock to_thread.
+    # But checking if add_document was called on the mock object should work if to_thread executes it.
+    # Wait, asyncio.to_thread runs the function in a thread. The mock object is thread-safe mostly.
+    
+    # Let's check if the method was called.
+    mock_rag_agent.document_store.add_document.assert_called_once_with("/path/to/doc.txt")
+    assert "aprendido com sucesso" in result
