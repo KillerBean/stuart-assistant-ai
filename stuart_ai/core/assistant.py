@@ -3,7 +3,7 @@ import uuid
 import platform
 import subprocess
 import asyncio
-import whisper
+
 import wikipedia
 from gtts import gTTS
 from playsound import playsound
@@ -15,19 +15,26 @@ from stuart_ai.core.config import settings
 from stuart_ai.core.logger import logger
 
 from stuart_ai.agents.web_search_agent import WebSearchAgent
-from stuart_ai.tools import AssistantTools
-from stuart_ai.LLM.ollama_llm import OllamaLLM
 
 
 class Assistant:
-    def __init__(self):
+    def __init__(
+        self,
+        llm,
+        web_search_agent: WebSearchAgent,
+        semantic_router,
+        memory,
+        whisper_model,
+        speech_recognizer: sr.Recognizer
+    ):
         self.keyword = settings.assistant_keyword.lower()
         self.temp_file_path = f"{settings.temp_dir}/temp_audio.wav"
-        self.recognizer = sr.Recognizer()
-        logger.info("Loading Whisper model...")
-        self.model = whisper.load_model("small")
+        
+        self.recognizer = speech_recognizer
+        self.model = whisper_model
+        
         wikipedia.set_lang("pt")
-        logger.info("Model loaded.")
+        
         self.app_aliases = {
             "navegador": { 
                 "Linux": "firefox",
@@ -42,21 +49,16 @@ class Assistant:
             # Adicione mais apelidos aqui
         }
 
-        self.llm = OllamaLLM().get_llm_instance()
-
-        self.web_search_agent = WebSearchAgent(llm=self.llm)
-        self.assistant_tools = AssistantTools(
-            speak_func=self.speak,
-            confirmation_func=self.listen_for_confirmation,
-            app_aliases=self.app_aliases,
-            web_search_agent=self.web_search_agent
-        )
+        self.llm = llm
+        self.web_search_agent = web_search_agent
 
         self.command_handler = CommandHandler(
             self.speak,
             self.listen_for_confirmation,
             self.app_aliases,
-            self.web_search_agent
+            self.web_search_agent,
+            semantic_router,
+            memory
         )
 
     async def speak(self, text: str):

@@ -5,8 +5,8 @@ from stuart_ai.LLM.ollama_llm import OllamaLLM
 from stuart_ai.core.logger import logger
 
 class SemanticRouter:
-    def __init__(self):
-        self.llm = OllamaLLM().get_llm_instance()
+    def __init__(self, llm):
+        self.llm = llm
 
     async def route(self, command: str, history_str: str = "") -> Dict[str, Any]:
         """

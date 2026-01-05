@@ -23,13 +23,13 @@ class CommandHandler:
     Handles the processing of user commands using a fast, keyword-based routing system and a Semantic Router.
     """
 
-    def __init__(self, speak_func, confirmation_func, app_aliases, web_search_agent: WebSearchAgent):
+    def __init__(self, speak_func, confirmation_func, app_aliases, web_search_agent: WebSearchAgent, semantic_router: SemanticRouter, memory: ConversationMemory):
         self.speak = speak_func
         self.confirm = confirmation_func
         self.app_aliases = app_aliases
         self.web_search_agent = web_search_agent 
-        self.semantic_router = SemanticRouter()
-        self.memory = ConversationMemory()
+        self.semantic_router = semantic_router
+        self.memory = memory
 
         assistant_tools = AssistantTools(
             speak_func=self.speak,
