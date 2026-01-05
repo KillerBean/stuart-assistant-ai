@@ -1,8 +1,9 @@
-from assistant import Assistant
+import asyncio
+from stuart_ai.core.assistant import Assistant
 
-def main():
+async def main():
     assistant = Assistant()
-    assistant.listen_continuously()
+    await assistant.listen_continuously()
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

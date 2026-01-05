@@ -1,6 +1,7 @@
 
 import os
 from crewai import LLM
+from stuart_ai.core.config import settings
 
 
 class OllamaLLM:
@@ -9,10 +10,10 @@ class OllamaLLM:
                   model: str | None = None,
                   temperature: float | None = None):
         
-        self.host = host if host else os.getenv("LLM_HOST", "localhost")
-        self.port = port if port else int(os.getenv("LLM_PORT", "11434"))
-        self.model = model if model else os.getenv("MODEL", "ollama/gemma3:latest")
-        self.temperature = temperature if temperature else 0.7
+        self.host = host if host else settings.llm_host
+        self.port = port if port else settings.llm_port
+        self.model = model if model else settings.llm_model
+        self.temperature = temperature if temperature else settings.llm_temperature
     
     def get_llm_instance(self):
         return LLM(
