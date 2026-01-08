@@ -249,3 +249,86 @@ async def test_check_calendar(assistant_tools_fixture):
     mock_speak.assert_called_once()
     mock_calendar.list_events.assert_called_once_with("hoje")
     assert result == "Lista de eventos."
+
+@pytest.mark.asyncio
+async def test_add_calendar_event_exception(assistant_tools_fixture, mocker):
+    tools, _, _, _, _, mock_calendar = assistant_tools_fixture
+    mock_calendar.add_event.side_effect = ValueError("Invalid date")
+    
+    result = await tools._add_calendar_event({"title": "Test", "datetime": "bad date"})
+    assert "Tive um problema ao salvar o evento" in result
+
+@pytest.mark.asyncio
+async def test_search_local_files_exception(assistant_tools_fixture, mocker):
+    tools, _, _, _, mock_rag, _ = assistant_tools_fixture
+    mock_rag.run.side_effect = RuntimeError("RAG Error")
+    
+    result = await tools._search_local_files("query")
+    assert "tive um erro ao consultar seus arquivos" in result
+
+@pytest.mark.asyncio
+async def test_index_file_exception(assistant_tools_fixture, mocker):
+    tools, _, _, _, mock_rag, _ = assistant_tools_fixture
+    # Need to mock os.path.basename or it runs on string
+    mocker.patch('stuart_ai.tools.system_tools.os.path.basename', return_value="file")
+    
+    # Mock to_thread to raise exception
+    # Since we can't easily mock to_thread to raise only for this call without affecting others if running in parallel (but tests are sequential),
+    # we can patch document_store.add_document to raise, and since to_thread runs it, the exception propagates.
+    mock_rag.document_store.add_document.side_effect = IOError("File Read Error")
+    
+    result = await tools._index_file("path")
+    assert "Não consegui ler o arquivo" in result
+
+@pytest.mark.asyncio
+async def test_search_wikipedia_exception(assistant_tools_fixture, mocker):
+    tools, _, _, _, _, _ = assistant_tools_fixture
+    mocker.patch('stuart_ai.tools.system_tools.wikipedia.summary', side_effect=RuntimeError("Wiki Error"))
+    mocker.patch('stuart_ai.tools.system_tools.wikipedia.set_lang')
+    
+    result = await tools._search_wikipedia("query")
+    assert "ocorreu um erro ao pesquisar no Wikipedia" in result
+
+@pytest.mark.asyncio
+async def test_get_weather_exception(assistant_tools_fixture, mocker):
+    tools, _, _, _, _, _ = assistant_tools_fixture
+    mocker.patch('aiohttp.ClientSession', side_effect=aiohttp.ClientError("Net Error"))
+    
+    result = await tools._get_weather("City")
+    assert "não consegui obter a previsão" in result
+
+@pytest.mark.asyncio
+async def test_open_app_exception(assistant_tools_fixture, mocker):
+    tools, _, _, _, _, _ = assistant_tools_fixture
+    mocker.patch('stuart_ai.tools.system_tools.platform.system', return_value="Linux")
+    mocker.patch('stuart_ai.tools.system_tools.subprocess.Popen', side_effect=OSError("Exec Error"))
+    
+    result = await tools._open_app("app")
+    assert "Ocorreu um erro ao tentar abrir" in result
+
+@pytest.mark.asyncio
+async def test_shutdown_exception(assistant_tools_fixture, mocker):
+    tools, _, mock_confirm, _, _, _ = assistant_tools_fixture
+    mock_confirm.return_value = True
+    mocker.patch('stuart_ai.tools.system_tools.platform.system', return_value="Linux")
+    mocker.patch('stuart_ai.tools.system_tools.subprocess.run', side_effect=OSError("Shutdown Error"))
+    
+    result = await tools._shutdown_computer()
+    assert "Ocorreu um erro ao tentar executar o comando" in result
+
+@pytest.mark.asyncio
+async def test_cancel_shutdown_exception(assistant_tools_fixture, mocker):
+    tools, _, _, _, _, _ = assistant_tools_fixture
+    mocker.patch('stuart_ai.tools.system_tools.platform.system', return_value="Linux")
+    mocker.patch('stuart_ai.tools.system_tools.subprocess.run', side_effect=OSError("Cancel Error"))
+    
+    result = await tools._cancel_shutdown()
+    assert "Ocorreu um erro ao tentar cancelar" in result
+
+@pytest.mark.asyncio
+async def test_perform_web_search_exception(assistant_tools_fixture, mocker):
+    tools, _, _, mock_search, _, _ = assistant_tools_fixture
+    mock_search.run.side_effect = RuntimeError("Agent Error")
+    
+    result = await tools._perform_web_search("query")
+    assert "ocorreu um erro ao realizar a pesquisa" in result
