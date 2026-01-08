@@ -5,7 +5,7 @@ import subprocess
 import asyncio
 
 import wikipedia
-from gtts import gTTS
+import edge_tts
 from playsound import playsound
 from thefuzz import process, fuzz
 import speech_recognition as sr
@@ -78,13 +78,10 @@ class Assistant:
         temp_audio_file = f"{settings.temp_dir}/response_{uuid.uuid4()}.mp3"
         try:
             logger.info("Assistant: %s", text)
-            tts = await asyncio.to_thread(gTTS, text=text, lang='pt-br')
-
-            dir_name = os.path.dirname(temp_audio_file)
-            if not os.path.exists(dir_name):
-                os.makedirs(dir_name)
-
-            await asyncio.to_thread(tts.save, temp_audio_file)
+            
+            # Use Edge TTS for high quality audio
+            communicate = edge_tts.Communicate(text, "pt-BR-AntonioNeural")
+            await communicate.save(temp_audio_file)
 
             system = platform.system()
             if system == "Linux":
