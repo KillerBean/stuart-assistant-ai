@@ -33,7 +33,7 @@ class CalendarManager:
                 f.writelines(self.calendar) # type: ignore
         except IOError as e:
             logger.error("Failed to save calendar: %s", e)
-            raise ToolError("Não foi possível salvar o evento no calendário.")
+            raise ToolError("Não foi possível salvar o evento no calendário.") from e
 
     def add_event(self, title: str, start_str: str, duration_minutes: int = 60) -> str:
         """Adds an event to the calendar."""
@@ -59,7 +59,7 @@ class CalendarManager:
             return f"Evento '{title}' agendado para {start_dt.strftime('%d/%m/%Y às %H:%M')}."
         except (ValueError, TypeError) as e:
             logger.error("Error adding event: %s", e)
-            raise ToolError(f"Erro ao agendar evento: {e}")
+            raise ToolError(f"Erro ao agendar evento: {e}") from e
 
     def list_events(self, date_str: str | None = None) -> str:
         """Lists events, optionally filtering by a specific date."""
@@ -119,4 +119,4 @@ class CalendarManager:
 
         except (ValueError, TypeError) as e:
             logger.error("Error deleting event: %s", e)
-            raise ToolError(f"Erro ao remover evento: {e}")
+            raise ToolError(f"Erro ao remover evento: {e}") from e

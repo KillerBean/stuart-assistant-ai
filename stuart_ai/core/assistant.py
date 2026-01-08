@@ -123,7 +123,7 @@ class Assistant:
                         self.recognizer.adjust_for_ambient_noise(source, duration=1)
                         return self.recognizer.listen(source, timeout=5, phrase_time_limit=3)
                 except OSError as e:
-                    raise AudioDeviceError(f"Could not access microphone: {e}")
+                    raise AudioDeviceError(f"Could not access microphone: {e}") from e
 
             audio = await asyncio.to_thread(listen_act)
 
@@ -138,7 +138,7 @@ class Assistant:
                 try:
                     result = await asyncio.to_thread(self.model.transcribe, temp_file, language="pt", fp16=False)
                 except Exception as e:
-                    raise TranscriptionError(f"Transcription failed: {e}")
+                    raise TranscriptionError(f"Transcription failed: {e}") from e
             
             response_text = str(result['text']).lower().strip()
             logger.info("Confirmation response: '%s'", response_text)
@@ -178,7 +178,7 @@ class Assistant:
                 with sr.Microphone() as source:
                     self.recognizer.adjust_for_ambient_noise(source, duration=1)
             except OSError as e:
-                raise AudioDeviceError(f"Could not access microphone: {e}")
+                raise AudioDeviceError(f"Could not access microphone: {e}") from e
         
         try:
             await asyncio.to_thread(adjust)
@@ -196,7 +196,7 @@ class Assistant:
                         with sr.Microphone() as source:
                             return self.recognizer.listen(source)
                     except OSError as e:
-                        raise AudioDeviceError(f"Could not access microphone: {e}")
+                        raise AudioDeviceError(f"Could not access microphone: {e}") from e
 
                 audio = await asyncio.to_thread(listen_loop)
                 logger.debug("Audio captured, processing...")
@@ -213,7 +213,7 @@ class Assistant:
                     try:
                         result = await asyncio.to_thread(self.model.transcribe, temp_file, language="pt", fp16=False)
                     except Exception as e:
-                        raise TranscriptionError(f"Transcription failed: {e}")
+                        raise TranscriptionError(f"Transcription failed: {e}") from e
                     
                 text = str(result['text']).strip()
                 logger.debug("Heard: %s", text)

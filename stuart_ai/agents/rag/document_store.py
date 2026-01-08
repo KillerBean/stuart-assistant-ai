@@ -71,7 +71,7 @@ class DocumentStore:
                 with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                     return f.read()
         except Exception as e:
-            raise ToolError(f"Failed to read file {file_path}: {e}")
+            raise ToolError(f"Failed to read file {file_path}: {e}") from e
 
     def add_document(self, file_path: str):
         """Processes a file and adds it to the vector store."""

@@ -63,7 +63,7 @@ class SemanticRouter:
             return json.loads(cleaned_response)
         except json.JSONDecodeError as e:
             logger.error("Failed to decode JSON from router response: %s", e)
-            raise LLMResponseError(f"Invalid JSON response from LLM: {cleaned_response}") # type: ignore
+            raise LLMResponseError(f"Invalid JSON response from LLM: {cleaned_response}") from e # type: ignore
         except Exception as e:
             logger.error("Error in semantic routing: %s", e)
-            raise LLMConnectionError(f"Failed to communicate with LLM: {e}")
+            raise LLMConnectionError(f"Failed to communicate with LLM: {e}") from e

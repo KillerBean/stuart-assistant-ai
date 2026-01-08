@@ -1,8 +1,7 @@
 import pytest
 from datetime import datetime as dt
 import wikipedia
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 from stuart_ai.tools.system_tools import AssistantTools
 from stuart_ai.agents.web_search_agent import WebSearchAgent
@@ -147,7 +146,7 @@ async def test_open_app(assistant_tools_fixture, mocker):
     
     result = await tools._open_app("firefox")
     
-    assert result == f"Abrindo firefox."
+    assert result == "Abrindo firefox."
     # asyncio.to_thread calls the function, so mock_popen should be called
     mock_popen.assert_called_once()
 
