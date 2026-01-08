@@ -1,5 +1,6 @@
 import pytest
 from unittest.mock import MagicMock
+from requests.exceptions import RequestException
 from stuart_ai.agents.web_search_agent import WebSearchAgent
 
 @pytest.fixture
@@ -35,7 +36,7 @@ def test_web_search_run_exception(web_search_agent_fixture):
     agent, mock_llm = web_search_agent_fixture
     
     # Simulate search error
-    agent.search_tool.run.side_effect = Exception("Network Error")
+    agent.search_tool.run.side_effect = RequestException("Network Error")
     
     result = agent.run("fail query")
     

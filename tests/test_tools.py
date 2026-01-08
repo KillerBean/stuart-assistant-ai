@@ -1,4 +1,5 @@
 import pytest
+import aiohttp
 from datetime import datetime as dt
 import wikipedia
 from unittest.mock import AsyncMock, MagicMock
@@ -50,7 +51,7 @@ async def test_get_time(assistant_tools_fixture, mocker):
     # Mock datetime where it is used in tools module
     mocker.patch('stuart_ai.tools.system_tools.datetime').now.return_value = fixed_time
     
-    result = await tools._get_time()
+    result = tools._get_time()
     
     assert result == "São 14:45."
 
@@ -85,7 +86,7 @@ async def test_tell_joke_success(assistant_tools_fixture, mocker):
 async def test_tell_joke_error(assistant_tools_fixture, mocker):
     tools, _, _, _, _, _ = assistant_tools_fixture
     
-    mocker.patch('aiohttp.ClientSession', side_effect=Exception("API Error"))
+    mocker.patch('aiohttp.ClientSession', side_effect=aiohttp.ClientError("API Error"))
     
     result = await tools._tell_joke()
     assert result == "Desculpe, não consegui buscar uma piada agora."

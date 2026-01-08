@@ -1,5 +1,6 @@
 import re
 import string
+import inspect
 from stuart_ai.agents.web_search_agent import WebSearchAgent
 from stuart_ai.agents.rag.rag_agent import LocalRAGAgent
 from stuart_ai.tools.system_tools import AssistantTools
@@ -16,7 +17,10 @@ class SimpleTool:
         self.func = func
     
     async def run(self, *args, **kwargs):
-        return await self.func(*args, **kwargs)
+        if inspect.iscoroutinefunction(self.func):
+            return await self.func(*args, **kwargs)
+        else:
+            return self.func(*args, **kwargs)
 
 class CommandHandler:
     """

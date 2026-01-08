@@ -1,4 +1,5 @@
 import os
+from typing import cast
 from stuart_ai.core.config import settings
 from stuart_ai.core.logger import logger
 from stuart_ai.core.exceptions import ToolError
@@ -91,10 +92,12 @@ class DocumentStore:
         # Generate embeddings
         embeddings = self.embedding_model.embed_documents(chunks)
         
+        from chromadb.api.types import Embedding, Metadata
+        
         self.collection.add(
             documents=chunks,
-            embeddings=embeddings,
-            metadatas=metadatas,
+            embeddings=cast(list[Embedding], embeddings),
+            metadatas=cast(list[Metadata], metadatas),
             ids=ids
         )
         logger.info("Added %d chunks from %s", len(chunks), file_path)
