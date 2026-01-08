@@ -1,5 +1,6 @@
 from langchain_community.tools import DuckDuckGoSearchRun
 from stuart_ai.core.logger import logger
+from requests.exceptions import RequestException
 
 class WebSearchAgent:
     def __init__(self, llm):
@@ -35,6 +36,9 @@ class WebSearchAgent:
             
             return response
 
-        except Exception as e:
+        except RequestException as e:
             logger.error("Web search failed: %s", e)
             return f"Desculpe, encontrei um erro ao pesquisar na web: {e}"
+        except (AttributeError, TypeError) as e:
+            logger.error("LLM call failed: %s", e)
+            return f"Desculpe, encontrei um erro ao processar a resposta: {e}"

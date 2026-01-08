@@ -15,13 +15,13 @@ class CalendarManager:
         """Loads the calendar from the file or creates a new one."""
         if os.path.exists(self.calendar_file):
             try:
-                with open(self.calendar_file, 'r') as f:
+                with open(self.calendar_file, 'r', encoding='utf-8') as f:
                     content = f.read()
                     # Handle empty file case
                     if not content.strip():
                         return Calendar()
                     return Calendar(content)
-            except Exception as e:
+            except (IOError, ValueError) as e:
                 logger.error("Failed to load calendar: %s", e)
                 return Calendar()
         return Calendar()
@@ -29,9 +29,9 @@ class CalendarManager:
     def _save_calendar(self):
         """Saves the current calendar state to the file."""
         try:
-            with open(self.calendar_file, 'w') as f:
+            with open(self.calendar_file, 'w', encoding='utf-8') as f:
                 f.writelines(self.calendar) # type: ignore
-        except Exception as e:
+        except IOError as e:
             logger.error("Failed to save calendar: %s", e)
             raise ToolError("Não foi possível salvar o evento no calendário.")
 
@@ -57,7 +57,7 @@ class CalendarManager:
             self._save_calendar()
             
             return f"Evento '{title}' agendado para {start_dt.strftime('%d/%m/%Y às %H:%M')}."
-        except Exception as e:
+        except (ValueError, TypeError) as e:
             logger.error("Error adding event: %s", e)
             raise ToolError(f"Erro ao agendar evento: {e}")
 
@@ -91,7 +91,7 @@ class CalendarManager:
             
             return "\n".join(result)
 
-        except Exception as e:
+        except (ValueError, TypeError) as e:
             logger.error("Error listing events: %s", e)
             return "Erro ao ler a agenda."
 
@@ -117,6 +117,6 @@ class CalendarManager:
             self._save_calendar()
             return f"Evento(s) '{title}' removido(s) com sucesso."
 
-        except Exception as e:
+        except (ValueError, TypeError) as e:
             logger.error("Error deleting event: %s", e)
             raise ToolError(f"Erro ao remover evento: {e}")

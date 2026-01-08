@@ -57,5 +57,5 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("Stuart AI stopped by user.")
-    except Exception as e:
+    except (RuntimeError, OSError) as e:
         logger.critical("Critical error in main loop: %s", e)

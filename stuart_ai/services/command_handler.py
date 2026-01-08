@@ -185,7 +185,7 @@ class CommandHandler:
                 if result:
                     self.memory.add_assistant_message(str(result))
                     await self.speak(str(result))
-            except Exception as e:
+            except (AttributeError, TypeError, ValueError, LLMResponseError, LLMConnectionError) as e:
                 logger.error("Error executing semantic tool %s: %s", tool_name, e)
                 await self.speak("Desculpe, tive um problema ao executar essa ação.")
         else:

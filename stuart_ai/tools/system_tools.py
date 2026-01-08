@@ -44,7 +44,7 @@ class AssistantTools:
 
             await self.speak(f"Agendando {title} para {datetime_str}...")
             return self.calendar_manager.add_event(title, datetime_str)
-        except Exception as e:
+        except (ValueError, TypeError) as e:
             logger.error("Error adding event: %s", e)
             return "Tive um problema ao salvar o evento."
 
@@ -66,7 +66,7 @@ class AssistantTools:
         await self.speak("Pesquisando nos seus arquivos...")
         try:
             return await self.local_rag_agent.run(query)
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError) as e:
             logger.error("Error querying local files: %s", e)
             return "Desculpe, tive um erro ao consultar seus arquivos."
 
@@ -83,7 +83,7 @@ class AssistantTools:
             # We run the blocking add_document in a thread
             await asyncio.to_thread(self.local_rag_agent.document_store.add_document, file_path)
             return f"Arquivo {os.path.basename(file_path)} aprendido com sucesso!"
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError, IOError) as e:
             logger.error("Error indexing file %s: %s", file_path, e)
             return f"Não consegui ler o arquivo. Verifique se o caminho está correto."
 
@@ -109,7 +109,7 @@ class AssistantTools:
                     response.raise_for_status()
                     joke_data = await response.json()
                     return joke_data['joke'] if joke_data.get('type') == 'single' else f"{joke_data['setup']} ... {joke_data['delivery']}"
-        except Exception as e:
+        except aiohttp.ClientError as e:
             logger.error("Error fetching joke from API: %s", e)
             return "Desculpe, não consegui buscar uma piada agora."
 
@@ -129,7 +129,7 @@ class AssistantTools:
             return f"Desculpe, não encontrei nenhum resultado para {search_term}."
         except wikipedia.exceptions.DisambiguationError:
             return f"O termo {search_term} é muito vago. Por favor, seja mais específico."
-        except Exception as e:
+        except (asyncio.TimeoutError, OSError, RuntimeError) as e:
             logger.error("Error searching Wikipedia for '%s': %s", search_term, e)
             return "Desculpe, ocorreu um erro ao pesquisar no Wikipedia."
 
@@ -144,7 +144,7 @@ class AssistantTools:
                 async with session.get(url) as response:
                     response.raise_for_status()
                     return await response.text()
-        except Exception as e:
+        except aiohttp.ClientError as e:
             logger.error("Error getting weather for '%s': %s", city, e)
             return f"Desculpe, não consegui obter a previsão do tempo para {city}."
 
@@ -171,7 +171,7 @@ class AssistantTools:
             return f"Abrindo {spoken_name}."
         except FileNotFoundError:
             return f"Desculpe, não consegui encontrar o programa {spoken_name}."
-        except Exception as e:
+        except (OSError, subprocess.SubprocessError) as e:
             logger.error("Error opening application: %s", e)
             return f"Ocorreu um erro ao tentar abrir o {spoken_name}."
 
@@ -185,7 +185,7 @@ class AssistantTools:
                 else:  # Linux ou macOS
                     await asyncio.to_thread(subprocess.run, ["shutdown", "-h", "+1"])
                 return "Ok, desligando o computador em 1 minuto. Adeus!"
-            except Exception as e:
+            except (subprocess.SubprocessError, OSError) as e:
                 logger.error("Error trying to shutdown: %s", e)
                 return "Ocorreu um erro ao tentar executar o comando de desligamento."
         else:
@@ -200,7 +200,7 @@ class AssistantTools:
             else:  # Linux ou macOS
                 await asyncio.to_thread(subprocess.run, ["shutdown", "-c"])
             return "Desligamento cancelado."
-        except Exception as e:
+        except (subprocess.SubprocessError, OSError) as e:
             logger.error("Error trying to cancel shutdown: %s", e)
             return "Ocorreu um erro ao tentar cancelar o comando de desligamento."
 
@@ -214,7 +214,7 @@ class AssistantTools:
             # Agent run might be blocking, run in thread
             result = await asyncio.to_thread(self.web_search_agent.run, search_query)
             return f"A pesquisa retornou o seguinte: {str(result)}"
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error("Error performing web search for '%s': %s", search_query, e)
             return "Desculpe, ocorreu um erro ao realizar a pesquisa na web."
 
