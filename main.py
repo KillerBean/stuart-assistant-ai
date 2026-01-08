@@ -37,9 +37,8 @@ async def main():
     memory = ConversationMemory()
     
     # 4. Initialize Speech Services
-    logger.info("Loading Whisper model (this may take a moment)...")
-    # Using 'small' model as per previous configuration
-    whisper_model = whisper.load_model("small")
+    logger.info(f"Loading Whisper model '{settings.whisper_model_size}' (this may take a moment)...")
+    whisper_model = whisper.load_model(settings.whisper_model_size)
     
     speech_recognizer = sr.Recognizer()
     

@@ -48,9 +48,19 @@ class AssistantTools:
             logger.error("Error adding event: %s", e)
             return "Tive um problema ao salvar o evento."
 
-    async def _check_calendar(self, date_str: str | None = None) -> str:
+    async def _check_calendar(self, date_str: str | dict | None = None) -> str:
         """Consultar agenda."""
         await self.speak("Consultando sua agenda...")
+        
+        # Handle dict arguments from LLM (e.g. {"date": "amanhã"})
+        if isinstance(date_str, dict):
+            # Try common keys
+            date_str = date_str.get("date") or date_str.get("datetime") or date_str.get("day") or date_str.get("data")
+        
+        # If it's still not a string (or was None/empty), pass None to list all
+        if not isinstance(date_str, str):
+            date_str = None
+            
         return self.calendar_manager.list_events(date_str)
 
     async def _delete_calendar_event(self, event_title: str) -> str:
@@ -88,19 +98,19 @@ class AssistantTools:
             return "Não consegui ler o arquivo. Verifique se o caminho está correto."
 
 
-    def _get_time(self) -> str:
+    def _get_time(self, *args, **kwargs) -> str:
         """Retorna a hora e os minutos atuais. Use esta ferramenta sempre que o usuário perguntar as horas."""
         now = datetime.now().strftime("%H:%M")
         return f"São {now}."
 
-    def _get_date(self) -> str:
+    def _get_date(self, *args, **kwargs) -> str:
         """Retorna a data atual. Use quando o usuário perguntar que dia é hoje."""
         now = datetime.now()
         # Format: Segunda-feira, 05 de Janeiro de 2026 (requires locale)
         # Or simple: 05/01/2026
         return f"Hoje é {now.strftime('%d/%m/%Y')}."
 
-    async def _tell_joke(self) -> str:
+    async def _tell_joke(self, *args, **kwargs) -> str:
         """Conta uma piada aleatória em português. Use quando o usuário pedir para contar uma piada."""
         try:
             url = "https://v2.jokeapi.dev/joke/Any?lang=pt&blacklistFlags=nsfw,religious,political,racist,sexist,explicit"
@@ -175,7 +185,7 @@ class AssistantTools:
             logger.error("Error opening application: %s", e)
             return f"Ocorreu um erro ao tentar abrir o {spoken_name}."
 
-    async def _shutdown_computer(self) -> str:
+    async def _shutdown_computer(self, *args, **kwargs) -> str:
         """Desliga o computador após uma confirmação do usuário."""
         if await self.confirm("Você tem certeza que deseja desligar o computador?"):
             system = platform.system()
@@ -191,7 +201,7 @@ class AssistantTools:
         else:
             return "Ação de desligamento cancelada."
 
-    async def _cancel_shutdown(self) -> str:
+    async def _cancel_shutdown(self, *args, **kwargs) -> str:
         """Cancela um desligamento do computador agendado."""
         system = platform.system()
         try:
@@ -218,7 +228,7 @@ class AssistantTools:
             logger.error("Error performing web search for '%s': %s", search_query, e)
             return "Desculpe, ocorreu um erro ao realizar a pesquisa na web."
 
-    async def _quit(self) -> AssistantSignal:
+    async def _quit(self, *args, **kwargs) -> AssistantSignal:
         """Encerra o assistente. Use quando o usuário disser 'sair', 'encerrar' ou 'tchau'."""
         await self.speak("Encerrando a assistente. Até logo!")
         return AssistantSignal.QUIT
