@@ -235,3 +235,4 @@ zstandard==0.25.0
 ics==0.7.2
 thefuzz==0.22.1
 python-Levenshtein==0.25.1
+dateparser==1.2.0

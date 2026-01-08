@@ -2,7 +2,7 @@ from __future__ import annotations
 import os
 from datetime import datetime, timedelta
 from ics import Calendar, Event
-from dateutil import parser
+import dateparser
 from stuart_ai.core.logger import logger
 from stuart_ai.core.exceptions import ToolError
 
@@ -38,11 +38,12 @@ class CalendarManager:
     def add_event(self, title: str, start_str: str, duration_minutes: int = 60) -> str:
         """Adds an event to the calendar."""
         try:
-            # Parse natural language date string using dateutil (fuzzy=True allows partial parsing)
-            # Note: For production, a stronger NL date parser like dateparser is better, 
-            # but dateutil works for explicit dates.
-            start_dt = parser.parse(start_str, fuzzy=True, dayfirst=True)
+            # Parse natural language date string using dateparser
+            start_dt = dateparser.parse(start_str)
             
+            if not start_dt:
+                raise ToolError(f"Não consegui entender a data: '{start_str}'")
+
             # If the parsed date is in the past (and no year specified), dateutil might default to current year.
             # We assume user means future. Logic could be improved here.
             
@@ -68,7 +69,11 @@ class CalendarManager:
 
         try:
             if date_str:
-                target_date = parser.parse(date_str, fuzzy=True, dayfirst=True).date()
+                target_dt = dateparser.parse(date_str)
+                if not target_dt:
+                    return f"Não entendi a data '{date_str}'."
+                
+                target_date = target_dt.date()
                 events = [e for e in self.calendar.events if e.begin.date() == target_date]
                 period_msg = f"para {target_date.strftime('%d/%m/%Y')}"
             else:
@@ -104,9 +109,11 @@ class CalendarManager:
             for event in self.calendar.events:
                 if event.name.lower() == title.lower():
                     if date_str:
-                        target_date = parser.parse(date_str, fuzzy=True, dayfirst=True).date()
-                        if event.begin.date() == target_date:
-                            to_delete.append(event)
+                        target_dt = dateparser.parse(date_str)
+                        if target_dt:
+                            target_date = target_dt.date()
+                            if event.begin.date() == target_date:
+                                to_delete.append(event)
                     else:
                         to_delete.append(event)
 
