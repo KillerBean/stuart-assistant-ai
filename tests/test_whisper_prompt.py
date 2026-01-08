@@ -21,8 +21,11 @@ def mock_components():
     audio_data.get_wav_data.return_value = b"fake_wav_data"
     recognizer.listen.return_value = audio_data
     
-    # Mock whisper transcribe return
-    whisper.transcribe.return_value = {"text": "sim"}
+    # Mock whisper transcribe return for faster-whisper
+    # Returns (segments, info). Segments is iterable of objects with .text
+    segment = MagicMock()
+    segment.text = "sim"
+    whisper.transcribe.return_value = ([segment], None)
     
     return llm, web, rag, router, memory, whisper, recognizer
 

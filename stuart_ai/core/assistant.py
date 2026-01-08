@@ -142,18 +142,20 @@ class Assistant:
                         f.write(audio.get_wav_data())
                 
                 try:
-                    result = await asyncio.to_thread(
-                        self.model.transcribe, 
-                        temp_file, 
-                        language="pt", 
-                        fp16=False,
-                        initial_prompt="Confirmação. Responda apenas Sim ou Não.",
-                        condition_on_previous_text=False
-                    )
+                    def transcribe_wrapper():
+                        segments, _ = self.model.transcribe(
+                            temp_file, 
+                            language="pt", 
+                            initial_prompt="Confirmação. Responda apenas Sim ou Não.",
+                            condition_on_previous_text=False
+                        )
+                        return " ".join([segment.text for segment in segments])
+
+                    response_text_raw = await asyncio.to_thread(transcribe_wrapper)
                 except Exception as e:
                     raise TranscriptionError(f"Transcription failed: {e}") from e
             
-            response_text = str(result['text']).lower().strip()
+            response_text = response_text_raw.lower().strip()
             logger.info("Confirmation response: '%s'", response_text)
             return "sim" in response_text
 
@@ -232,18 +234,20 @@ class Assistant:
                     
                     # Transcribe using Whisper
                     try:
-                        result = await asyncio.to_thread(
-                            self.model.transcribe, 
-                            temp_file, 
-                            language="pt", 
-                            fp16=False,
-                            initial_prompt=initial_prompt,
-                            condition_on_previous_text=False # Helps prevent hallucinations in loops
-                        )
+                        def transcribe_wrapper():
+                            segments, _ = self.model.transcribe(
+                                temp_file, 
+                                language="pt",
+                                initial_prompt=initial_prompt,
+                                condition_on_previous_text=False
+                            )
+                            return " ".join([segment.text for segment in segments])
+
+                        text = await asyncio.to_thread(transcribe_wrapper)
                     except Exception as e:
                         raise TranscriptionError(f"Transcription failed: {e}") from e
                     
-                text = str(result['text']).strip()
+                text = text.strip()
                 if not text:
                     continue
                     

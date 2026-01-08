@@ -1,5 +1,5 @@
 import asyncio
-import whisper
+from faster_whisper import WhisperModel
 import speech_recognition as sr
 from stuart_ai.core.config import settings
 from stuart_ai.core.assistant import Assistant
@@ -37,8 +37,9 @@ async def main():
     memory = ConversationMemory()
     
     # 4. Initialize Speech Services
-    logger.info(f"Loading Whisper model '{settings.whisper_model_size}' (this may take a moment)...")
-    whisper_model = whisper.load_model(settings.whisper_model_size)
+    logger.info(f"Loading Faster Whisper model '{settings.whisper_model_size}' (this may take a moment)...")
+    # Using 'int8' for CPU efficiency. If you have a GPU, use device='cuda' and compute_type='float16'
+    whisper_model = WhisperModel(settings.whisper_model_size, device="cpu", compute_type="int8")
     
     speech_recognizer = sr.Recognizer()
     
