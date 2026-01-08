@@ -48,10 +48,15 @@ class AssistantTools:
             logger.error(f"Error adding event: {e}")
             return "Tive um problema ao salvar o evento."
 
-    async def _check_calendar(self, date_str: str = None) -> str:
+    async def _check_calendar(self, date_str: str | None = None) -> str:
         """Consultar agenda."""
         await self.speak("Consultando sua agenda...")
         return self.calendar_manager.list_events(date_str)
+
+    async def _delete_calendar_event(self, event_title: str) -> str:
+        """Excluir um compromisso."""
+        await self.speak(f"Excluindo o evento {event_title}...")
+        return self.calendar_manager.delete_event(event_title)
 
     async def _search_local_files(self, query: str) -> str:
         """Pesquisa nos arquivos locais indexados. Use quando o usuário perguntar sobre documentos, arquivos ou 'o que diz o arquivo X'."""
@@ -87,6 +92,13 @@ class AssistantTools:
         """Retorna a hora e os minutos atuais. Use esta ferramenta sempre que o usuário perguntar as horas."""
         now = datetime.now().strftime("%H:%M")
         return f"São {now}."
+
+    async def _get_date(self) -> str:
+        """Retorna a data atual. Use quando o usuário perguntar que dia é hoje."""
+        now = datetime.now()
+        # Format: Segunda-feira, 05 de Janeiro de 2026 (requires locale)
+        # Or simple: 05/01/2026
+        return f"Hoje é {now.strftime('%d/%m/%Y')}."
 
     async def _tell_joke(self) -> str:
         """Conta uma piada aleatória em português. Use quando o usuário pedir para contar uma piada."""

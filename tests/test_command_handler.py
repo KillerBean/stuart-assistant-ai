@@ -45,6 +45,7 @@ def command_handler_fixture(mocker):
 
     # Specifically set return values for some tools to match test expectations
     handler.tools["time"].run.return_value = "São 10:00"
+    handler.tools["date"].run.return_value = "Hoje é 01/01/2026"
     handler.tools["joke"].run.return_value = "Uma piada engraçada."
     handler.tools["wikipedia"].run.return_value = "Resultado da Wikipedia."
     handler.tools["open_app"].run.return_value = "Aplicativo aberto."
@@ -87,16 +88,15 @@ async def test_system_route_quit(command_handler_fixture):
     mock_speak.assert_not_called() 
 
 @pytest.mark.asyncio
-async def test_semantic_route_time(command_handler_fixture):
-    """Tests routing to a semantic tool (time)."""
+async def test_system_route_time(command_handler_fixture):
+    """Tests routing to time tool via regex."""
     handler, mock_speak, mock_router = command_handler_fixture
     
-    # Mock Router response
-    mock_router.route.return_value = {"tool": "time", "args": None}
-
     await handler.process("que horas são?")
     
-    mock_router.route.assert_called_once()
+    # Should NOT call semantic router
+    mock_router.route.assert_not_called()
+    
     handler.tools["time"].run.assert_called_once()
     mock_speak.assert_called_once_with("São 10:00")
 

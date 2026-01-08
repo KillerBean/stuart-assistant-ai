@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 from datetime import datetime, timedelta
 from ics import Calendar, Event
@@ -93,3 +94,29 @@ class CalendarManager:
         except Exception as e:
             logger.error(f"Error listing events: {e}")
             return "Erro ao ler a agenda."
+
+    def delete_event(self, title: str, date_str: str | None = None) -> str:
+        """Deletes an event by title, optionally filtering by date."""
+        try:
+            to_delete = []
+            for event in self.calendar.events:
+                if event.name.lower() == title.lower():
+                    if date_str:
+                        target_date = parser.parse(date_str, fuzzy=True, dayfirst=True).date()
+                        if event.begin.date() == target_date:
+                            to_delete.append(event)
+                    else:
+                        to_delete.append(event)
+
+            if not to_delete:
+                return f"Nenhum evento encontrado com o título '{title}'."
+
+            for event in to_delete:
+                self.calendar.events.remove(event)
+
+            self._save_calendar()
+            return f"Evento(s) '{title}' removido(s) com sucesso."
+
+        except Exception as e:
+            logger.error(f"Error deleting event: {e}")
+            raise ToolError(f"Erro ao remover evento: {e}")

@@ -1,6 +1,5 @@
 import re
 import string
-import asyncio
 from stuart_ai.llm.ollama_llm import OllamaLLM
 from stuart_ai.agents.web_search_agent import WebSearchAgent
 from stuart_ai.agents.rag.rag_agent import LocalRAGAgent
@@ -45,6 +44,7 @@ class CommandHandler:
         # Tools available
         self.tools = {
             "time": SimpleTool(name='_get_time', func=assistant_tools._get_time),
+            "date": SimpleTool(name='_get_date', func=assistant_tools._get_date),
             "joke": SimpleTool(name='_tell_joke', func=assistant_tools._tell_joke),
             "wikipedia": SimpleTool(name='_search_wikipedia', func=assistant_tools._search_wikipedia),
             "weather": SimpleTool(name='_get_weather', func=assistant_tools._get_weather),
@@ -52,6 +52,7 @@ class CommandHandler:
             "search_local_files": SimpleTool(name='_search_local_files', func=assistant_tools._search_local_files),
             "index_file": SimpleTool(name='_index_file', func=assistant_tools._index_file),
             "add_event": SimpleTool(name='_add_calendar_event', func=assistant_tools._add_calendar_event),
+            "delete_event": SimpleTool(name='_delete_calendar_event', func=assistant_tools._delete_calendar_event),
             "check_calendar": SimpleTool(name='_check_calendar', func=assistant_tools._check_calendar),
             "open_app": SimpleTool(name='_open_app', func=assistant_tools._open_app),
             "shutdown_computer": SimpleTool(name='_shutdown_computer', func=assistant_tools._shutdown_computer),
@@ -65,6 +66,9 @@ class CommandHandler:
             (r"\b(desligar|desligue)\b", self.tools["shutdown_computer"]),
             (r"\b(cancele o desligamento|cancelar desligamento)\b", self.tools["cancel_shutdown"]),
             (r"\b(sair|encerrar|tchau)\b", self.tools["quit"]),
+            (r"\b(que horas (são|tem)|me diga as horas|qual o horário)\b", self.tools["time"]),
+            (r"\b(que dia (é hoje|hoje)|data de hoje|qual a data)\b", self.tools["date"]),
+            (r"\b(conte uma piada|me faça rir|outra piada)\b", self.tools["joke"]),
         ]
 
     def _extract_argument(self, command: str, keyword: str) -> str:
