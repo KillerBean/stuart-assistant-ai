@@ -60,7 +60,8 @@ class CommandHandler:
             "open_app": SimpleTool(name='_open_app', func=assistant_tools._open_app),
             "shutdown_computer": SimpleTool(name='_shutdown_computer', func=assistant_tools._shutdown_computer),
             "cancel_shutdown": SimpleTool(name='_cancel_shutdown', func=assistant_tools._cancel_shutdown),
-            "quit": SimpleTool(name='_quit', func=assistant_tools._quit)
+            "quit": SimpleTool(name='_quit', func=assistant_tools._quit),
+            "cancel": SimpleTool(name='_cancel', func=lambda: "Tudo bem, comando cancelado.")
         }
 
         # System/Critical commands - kept in Regex for speed and safety
@@ -69,6 +70,7 @@ class CommandHandler:
             (r"\b(desligar|desligue)\b", self.tools["shutdown_computer"]),
             (r"\b(cancele o desligamento|cancelar desligamento)\b", self.tools["cancel_shutdown"]),
             (r"\b(sair|encerrar|tchau)\b", self.tools["quit"]),
+            (r"\b(cancelar|esquece|deixa pra lá|pare|parar)\b", self.tools["cancel"]),
             (r"\b(que horas (são|tem)|me diga as horas|qual o horário)\b", self.tools["time"]),
             (r"\b(que dia (é hoje|hoje)|data de hoje|qual a data)\b", self.tools["date"]),
             (r"\b(conte uma piada|me faça rir|outra piada)\b", self.tools["joke"]),
