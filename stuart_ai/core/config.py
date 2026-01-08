@@ -7,6 +7,13 @@ class Settings(BaseSettings):
     assistant_keyword: str = "stuart"
     language: str = "pt"
     
+    # Audio/Wake Word Configuration
+    mic_energy_threshold: int = 4000  # Adjust based on mic quality/noise
+    mic_dynamic_energy_threshold: bool = True # Let it adjust automatically?
+    wake_word_confidence: int = 70 # 0-100 match score for fuzzy matching
+    phrase_time_limit: int = 10 # Max seconds to record
+    whisper_model_size: str = "small" # tiny, base, small, medium, large
+    
     # LLM Configuration
     llm_host: str = "localhost"
     llm_port: int = 11434

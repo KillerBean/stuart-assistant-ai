@@ -7,6 +7,7 @@ import asyncio
 import wikipedia
 from gtts import gTTS
 from playsound import playsound
+from thefuzz import process, fuzz
 import speech_recognition as sr
 from stuart_ai.utils.tmp_file_handler import TempFileHandler
 from stuart_ai.utils.audio_utils import ignore_stderr
@@ -35,6 +36,9 @@ class Assistant:
         self.temp_file_path = f"{settings.temp_dir}/temp_audio.wav"
         
         self.recognizer = speech_recognizer
+        self.recognizer.energy_threshold = settings.mic_energy_threshold
+        self.recognizer.dynamic_energy_threshold = settings.mic_dynamic_energy_threshold
+        
         self.model = whisper_model
         
         wikipedia.set_lang("pt")
@@ -87,14 +91,14 @@ class Assistant:
                 try:
                     # Use mpg123 on Linux, as playsound can be problematic
                     await asyncio.create_subprocess_exec(
-                        "mpg123", temp_audio_file,
+                        "mpg123", "-q", temp_audio_file,
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL
                     )
                     # We wait a bit or use wait() if we want it to be fully synchronous playback
                     # For now, let's wait for it to finish to mimic original behavior
                     process = await asyncio.create_subprocess_exec(
-                        "mpg123", temp_audio_file,
+                        "mpg123", "-q", temp_audio_file,
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL
                     )
@@ -138,7 +142,14 @@ class Assistant:
                         f.write(audio.get_wav_data())
                 
                 try:
-                    result = await asyncio.to_thread(self.model.transcribe, temp_file, language="pt", fp16=False)
+                    result = await asyncio.to_thread(
+                        self.model.transcribe, 
+                        temp_file, 
+                        language="pt", 
+                        fp16=False,
+                        initial_prompt="Confirmação. Responda apenas Sim ou Não.",
+                        condition_on_previous_text=False
+                    )
                 except Exception as e:
                     raise TranscriptionError(f"Transcription failed: {e}") from e
             
@@ -173,6 +184,12 @@ class Assistant:
         """
         Listens for audio continuously, transcribes it, and checks for the keyword.
         """
+        initial_prompt = (
+            "Transcrição de comandos de voz para o assistente virtual Stuart. "
+            "Palavras-chave: Stuart, abrir, pesquisar, agendar, hora, data, clima, "
+            "cancelar, desligar, tocar, piada, Python, Linux, código."
+        )
+
         logger.info("Adjusting for ambient noise...")
         # Initial adjustment
         def adjust():
@@ -198,7 +215,7 @@ class Assistant:
                     try:
                         with ignore_stderr():
                             with sr.Microphone() as source:
-                                return self.recognizer.listen(source)
+                                return self.recognizer.listen(source, timeout=None, phrase_time_limit=settings.phrase_time_limit)
                     except OSError as e:
                         raise AudioDeviceError(f"Could not access microphone: {e}") from e
 
@@ -215,17 +232,54 @@ class Assistant:
                     
                     # Transcribe using Whisper
                     try:
-                        result = await asyncio.to_thread(self.model.transcribe, temp_file, language="pt", fp16=False)
+                        result = await asyncio.to_thread(
+                            self.model.transcribe, 
+                            temp_file, 
+                            language="pt", 
+                            fp16=False,
+                            initial_prompt=initial_prompt,
+                            condition_on_previous_text=False # Helps prevent hallucinations in loops
+                        )
                     except Exception as e:
                         raise TranscriptionError(f"Transcription failed: {e}") from e
                     
                 text = str(result['text']).strip()
+                if not text:
+                    continue
+                    
                 logger.debug("Heard: %s", text)
+                text_lower = text.lower()
 
-                if self.keyword in text.lower():
+                # 1. Strict Match
+                if self.keyword in text_lower:
+                    logger.info("Wake word detected (strict match): %s", text)
                     result = await self.handle_command(text)
                     if result == AssistantSignal.QUIT:
                         break
+                    continue
+
+                # 2. Fuzzy Match
+                # Check if the keyword is somewhat present
+                # partial_ratio allows "stuart faça isso" to match "stuart" well even if "stuart" is slightly off?
+                # Actually partial_ratio is 100 if the short string is in the long string.
+                # If we have "stewart faça isso", partial ratio of "stuart" might be high.
+                
+                # Let's verify word-by-word to find the trigger
+                words = text_lower.split()
+                if not words:
+                    continue
+                    
+                best_match = process.extractOne(self.keyword, words, scorer=fuzz.ratio)
+                if best_match:
+                    matched_word, score = best_match
+                    if score >= settings.wake_word_confidence:
+                        logger.info("Wake word detected (fuzzy match: '%s', score: %d): %s", matched_word, score, text)
+                        # Replace the wrong word with the correct keyword so handle_command can strip it
+                        # We use replace(..., 1) to only replace the first occurrence
+                        text_fixed = text_lower.replace(matched_word, self.keyword, 1)
+                        result = await self.handle_command(text_fixed)
+                        if result == AssistantSignal.QUIT:
+                            break
 
             except sr.WaitTimeoutError:
                 logger.debug("Listening timed out, listening again...")
