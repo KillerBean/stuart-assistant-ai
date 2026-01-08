@@ -9,6 +9,7 @@ from gtts import gTTS
 from playsound import playsound
 import speech_recognition as sr
 from stuart_ai.utils.tmp_file_handler import TempFileHandler
+from stuart_ai.utils.audio_utils import ignore_stderr
 from stuart_ai.services.command_handler import CommandHandler
 from stuart_ai.core.enums import AssistantSignal
 from stuart_ai.core.config import settings
@@ -118,10 +119,11 @@ class Assistant:
         try:
             def listen_act():
                 try:
-                    with sr.Microphone() as source:
-                        logger.info("Listening for confirmation...")
-                        self.recognizer.adjust_for_ambient_noise(source, duration=1)
-                        return self.recognizer.listen(source, timeout=5, phrase_time_limit=3)
+                    with ignore_stderr():
+                        with sr.Microphone() as source:
+                            logger.info("Listening for confirmation...")
+                            self.recognizer.adjust_for_ambient_noise(source, duration=1)
+                            return self.recognizer.listen(source, timeout=5, phrase_time_limit=3)
                 except OSError as e:
                     raise AudioDeviceError(f"Could not access microphone: {e}") from e
 
@@ -175,8 +177,9 @@ class Assistant:
         # Initial adjustment
         def adjust():
             try:
-                with sr.Microphone() as source:
-                    self.recognizer.adjust_for_ambient_noise(source, duration=1)
+                with ignore_stderr():
+                    with sr.Microphone() as source:
+                        self.recognizer.adjust_for_ambient_noise(source, duration=1)
             except OSError as e:
                 raise AudioDeviceError(f"Could not access microphone: {e}") from e
         
@@ -193,8 +196,9 @@ class Assistant:
             try:
                 def listen_loop():
                     try:
-                        with sr.Microphone() as source:
-                            return self.recognizer.listen(source)
+                        with ignore_stderr():
+                            with sr.Microphone() as source:
+                                return self.recognizer.listen(source)
                     except OSError as e:
                         raise AudioDeviceError(f"Could not access microphone: {e}") from e
 
