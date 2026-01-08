@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     llm_host: str = "localhost"
     llm_port: int = 11434
     llm_model: str = "gemma3:latest"
+    router_model: str = "qwen2.5:0.5b"
     llm_temperature: float = 0.7
     embedding_model: str = "nomic-embed-text"
     

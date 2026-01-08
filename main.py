@@ -1,6 +1,7 @@
 import asyncio
 import whisper
 import speech_recognition as sr
+from stuart_ai.core.config import settings
 from stuart_ai.core.assistant import Assistant
 from stuart_ai.core.logger import logger
 from stuart_ai.llm.ollama_llm import OllamaLLM
@@ -14,20 +15,25 @@ async def main():
     logger.info("Initializing Stuart AI...")
     
     # 1. Initialize Core Services (LLM)
-    logger.info("Initializing LLM...")
-    llm = OllamaLLM().get_llm_instance()
+    logger.info("Initializing LLMs...")
+    # Main LLM for complex tasks (RAG, Chat, Search)
+    main_llm = OllamaLLM().get_llm_instance()
+    
+    # Dedicated, smaller LLM for fast routing
+    logger.info(f"Initializing Router LLM ({settings.router_model})...")
+    router_llm = OllamaLLM(model=settings.router_model).get_llm_instance()
     
     # 2. Initialize Agents & Tools
     logger.info("Initializing Web Search Agent...")
-    web_search_agent = WebSearchAgent(llm=llm)
+    web_search_agent = WebSearchAgent(llm=main_llm)
 
     logger.info("Initializing Local RAG Agent...")
     document_store = DocumentStore()
-    local_rag_agent = LocalRAGAgent(llm=llm, document_store=document_store)
+    local_rag_agent = LocalRAGAgent(llm=main_llm, document_store=document_store)
     
     # 3. Initialize Routing & Memory
     logger.info("Initializing Semantic Router and Memory...")
-    semantic_router = SemanticRouter(llm=llm)
+    semantic_router = SemanticRouter(llm=router_llm)
     memory = ConversationMemory()
     
     # 4. Initialize Speech Services
@@ -40,7 +46,7 @@ async def main():
     # 5. Initialize Assistant
     logger.info("Starting Assistant...")
     assistant = Assistant(
-        llm=llm,
+        llm=main_llm,
         web_search_agent=web_search_agent,
         local_rag_agent=local_rag_agent,
         semantic_router=semantic_router,
