@@ -178,6 +178,12 @@ class CommandHandler:
             await self.speak(response_text)
             return
 
+        if tool_name == "cancel":
+            response_text = "Tudo bem, comando cancelado."
+            self.memory.add_assistant_message(response_text)
+            await self.speak(response_text)
+            return
+
         if tool_name in self.tools:
             tool = self.tools[tool_name]
             try:

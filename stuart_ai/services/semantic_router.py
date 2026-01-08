@@ -33,6 +33,7 @@ class SemanticRouter:
         - "index_file": Pedido para ler/aprender um arquivo novo. Argumento: "file_path".
         - "add_event": Agendar compromissos. Argumento (JSON): {{"title": "Nome do evento", "datetime": "Data e hora naturais (ex: amanhã as 14h)"}}.
         - "check_calendar": Consultar agenda. Argumento: "data_para_filtrar" (ou null para ver tudo).
+        - "cancel": O usuário pediu para cancelar, esquecer, ou parar o comando atual. Argumento: null.
         - "general_chat": Conversa casual, cumprimentos ou perguntas que você mesmo pode responder sem ferramentas.
         
         Responda APENAS um objeto JSON no seguinte formato, sem markdown ou explicações:
@@ -47,6 +48,8 @@ class SemanticRouter:
         (Histórico: User='Quem foi Napoleão?') Usuário: "Onde ele morreu?" -> {{"tool": "wikipedia", "args": "Morte de Napoleão"}}
         Usuário: "Marque dentista amanhã às 10" -> {{"tool": "add_event", "args": {{"title": "Dentista", "datetime": "amanhã às 10:00"}}}}
         Usuário: "O que tenho hoje?" -> {{"tool": "check_calendar", "args": "hoje"}}
+        Usuário: "Deixa pra lá" -> {{"tool": "cancel", "args": null}}
+        Usuário: "Cancela" -> {{"tool": "cancel", "args": null}}
         
         Comando atual do usuário: "{command}"
         JSON:
