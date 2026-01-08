@@ -168,11 +168,11 @@ class CommandHandler:
             args = None
 
         if tool_name == "general_chat":
-             # Simple fallback for now
-             response_text = "Entendi. Como posso ajudar com isso?"
-             self.memory.add_assistant_message(response_text)
-             await self.speak(response_text)
-             return
+            # Simple fallback for now
+            response_text = "Entendi. Como posso ajudar com isso?"
+            self.memory.add_assistant_message(response_text)
+            await self.speak(response_text)
+            return
 
         if tool_name in self.tools:
             tool = self.tools[tool_name]
