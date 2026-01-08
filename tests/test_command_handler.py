@@ -2,7 +2,9 @@ import pytest
 from unittest.mock import MagicMock, AsyncMock
 from stuart_ai.services.command_handler import CommandHandler, SimpleTool
 from stuart_ai.agents.web_search_agent import WebSearchAgent
+from stuart_ai.agents.rag.rag_agent import LocalRAGAgent
 from stuart_ai.core.enums import AssistantSignal
+from stuart_ai.core.exceptions import LLMResponseError, LLMConnectionError
 
 @pytest.fixture
 def command_handler_fixture(mocker):
@@ -12,21 +14,25 @@ def command_handler_fixture(mocker):
     mock_speak_func = AsyncMock()
     mock_confirm_func = AsyncMock()
     mock_web_search_agent = mocker.MagicMock(spec=WebSearchAgent)
+    mock_local_rag_agent = mocker.MagicMock(spec=LocalRAGAgent)
     app_aliases = {"browser": "firefox"}
 
-    # Mock OllamaLLM to prevent actual instantiation
-    mocker.patch("stuart_ai.services.command_handler.OllamaLLM")
+    # Mock SemanticRouter
+    mock_router = mocker.MagicMock()
+    mock_router.route = AsyncMock()
 
-    # Mock SemanticRouter to prevent actual LLM calls
-    mock_router = mocker.patch("stuart_ai.services.command_handler.SemanticRouter")
-    mock_router_instance = mock_router.return_value
-    mock_router_instance.route = AsyncMock()
+    # Mock ConversationMemory
+    mock_memory = mocker.MagicMock()
+    mock_memory.get_formatted_history.return_value = ""
 
     handler = CommandHandler(
         speak_func=mock_speak_func,
         confirmation_func=mock_confirm_func,
         app_aliases=app_aliases,
-        web_search_agent=mock_web_search_agent
+        web_search_agent=mock_web_search_agent,
+        local_rag_agent=mock_local_rag_agent,
+        semantic_router=mock_router,
+        memory=mock_memory
     )
 
     # We need to mock the tools inside the handler to isolate logic
@@ -39,12 +45,13 @@ def command_handler_fixture(mocker):
 
     # Specifically set return values for some tools to match test expectations
     handler.tools["time"].run.return_value = "São 10:00"
+    handler.tools["date"].run.return_value = "Hoje é 01/01/2026"
     handler.tools["joke"].run.return_value = "Uma piada engraçada."
     handler.tools["wikipedia"].run.return_value = "Resultado da Wikipedia."
     handler.tools["open_app"].run.return_value = "Aplicativo aberto."
     handler.tools["quit"].run.return_value = AssistantSignal.QUIT
 
-    return handler, mock_speak_func, mock_router_instance
+    return handler, mock_speak_func, mock_router
 
 @pytest.mark.asyncio
 async def test_process_empty_command(command_handler_fixture):
@@ -81,16 +88,15 @@ async def test_system_route_quit(command_handler_fixture):
     mock_speak.assert_not_called() 
 
 @pytest.mark.asyncio
-async def test_semantic_route_time(command_handler_fixture):
-    """Tests routing to a semantic tool (time)."""
+async def test_system_route_time(command_handler_fixture):
+    """Tests routing to time tool via regex."""
     handler, mock_speak, mock_router = command_handler_fixture
     
-    # Mock Router response
-    mock_router.route.return_value = {"tool": "time", "args": None}
-
     await handler.process("que horas são?")
     
-    mock_router.route.assert_called_once()
+    # Should NOT call semantic router
+    mock_router.route.assert_not_called()
+    
     handler.tools["time"].run.assert_called_once()
     mock_speak.assert_called_once_with("São 10:00")
 
@@ -136,3 +142,27 @@ async def test_extract_argument_removes_articles(command_handler_fixture):
     keyword = "pesquise sobre"
     argument = handler._extract_argument(command, keyword)
     assert argument == "universo"
+
+@pytest.mark.asyncio
+async def test_semantic_route_fallback_on_response_error(command_handler_fixture):
+    """Tests fallback to web_search when LLM returns invalid JSON."""
+    handler, mock_speak, mock_router = command_handler_fixture
+    
+    mock_router.route.side_effect = LLMResponseError("Invalid JSON")
+    handler.tools["web_search"].run.return_value = "Resultado da web."
+
+    await handler.process("qual a cotação do dólar?")
+    
+    handler.tools["web_search"].run.assert_called_once_with("qual a cotação do dólar?")
+    mock_speak.assert_called_once_with("Resultado da web.")
+
+@pytest.mark.asyncio
+async def test_semantic_route_fallback_on_connection_error(command_handler_fixture):
+    """Tests fallback to general_chat when LLM is offline."""
+    handler, mock_speak, mock_router = command_handler_fixture
+    
+    mock_router.route.side_effect = LLMConnectionError("Connection failed")
+
+    await handler.process("qualquer coisa")
+    
+    mock_speak.assert_called_once_with("Entendi. Como posso ajudar com isso?")

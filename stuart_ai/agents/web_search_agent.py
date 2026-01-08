@@ -1,75 +1,44 @@
-import os
-from crewai import Agent, Task, Crew, LLM
-from crewai.tools import BaseTool
 from langchain_community.tools import DuckDuckGoSearchRun
-
-from stuart_ai.LLM.ollama_llm import OllamaLLM
-
-
-class DuckDuckGoSearchTool(BaseTool):
-    name: str = "DuckDuckGo Search"
-    description: str = "A tool that can be used to search DuckDuckGo for a given query."
-    
-    def _run(self, query: str) -> str:
-        """Use the tool."""
-        return DuckDuckGoSearchRun().run(query)
+from stuart_ai.core.logger import logger
+from requests.exceptions import RequestException
 
 class WebSearchAgent:
-    def __init__(self, llm: LLM | None = None, search_tool: BaseTool | None = None) -> None:
-        self.search_tool = search_tool or DuckDuckGoSearchTool()
-        self.llm = llm or OllamaLLM().get_llm_instance()
+    def __init__(self, llm):
+        self.llm = llm
+        self.search_tool = DuckDuckGoSearchRun()
 
-    def create_web_search_agent(self) -> Agent:
-        return Agent(
-            role='Pesquisador Web Sênior',
-            goal='Encontrar e sintetizar informações relevantes da web sobre um tópico específico.',
-            backstory='É um pesquisador experiente, especialista em encontrar e analisar rapidamente informações online para fornecer insights concisos e precisos.',
-            verbose=True,
-            llm=self.llm,
-            allow_delegation=False,
-            tools=[self.search_tool],
-        )
+    def run(self, query: str) -> str:
+        """
+        Executes a web search and summarizes the results using the LLM.
+        """
+        logger.info("WebSearchAgent executing query: '%s'", query)
+        
+        try:
+            # 1. Execute Search
+            search_results = self.search_tool.run(query)
+            
+            # 2. Synthesize with LLM
+            prompt = f"""
+            Você é um pesquisador especialista. Resuma as informações abaixo para responder à pergunta do usuário de forma concisa e direta.
+            
+            Pergunta: {query}
+            
+            Resultados da Busca:
+            ---
+            {search_results}
+            ---
+            
+            Resumo (em português):
+            """
+            
+            messages = [{"role": "user", "content": prompt}]
+            response = self.llm.call(messages)
+            
+            return response
 
-    def create_web_search_task(self, agent, query) -> Task:
-        return Task(
-            description=f"Pesquise a web por '{query}' e forneça um resumo conciso das informações mais importantes.",
-            expected_output='Um resumo conciso e preciso das informações encontradas na web sobre o tópico da pesquisa.',
-            agent=agent
-        )
-
-    def run_search_crew(self, query) -> str:
-        agent = self.create_web_search_agent()
-        task = self.create_web_search_task(agent, query)
-
-        crew = Crew(
-            agents=[agent],
-            tasks=[task],
-            verbose=True,
-        )
-
-        result = str(crew.kickoff())
-        return result
-
-def main():
-    import argparse
-
-    # Configura o parser de argumentos
-    parser = argparse.ArgumentParser(description="Executa uma pesquisa na web usando o WebSearchAgent.")
-    parser.add_argument("query", type=str, help="O texto a ser pesquisado.")
-    args = parser.parse_args()
-
-    # Instancia o LLM
-    llm = OllamaLLM().get_llm_instance()
-    
-    # Instancia e executa o agente de busca com a query da linha de comando
-    web_search = WebSearchAgent(llm=llm)
-    search_query = args.query
-    
-    print(f"Iniciando pesquisa para: '{search_query}'")
-    result = web_search.run_search_crew(search_query)
-    
-    print("\n--- Resultado da Pesquisa ---")
-    print(result)
-
-if __name__ == '__main__':
-    main()
+        except RequestException as e:
+            logger.error("Web search failed: %s", e)
+            return f"Desculpe, encontrei um erro ao pesquisar na web: {e}"
+        except (AttributeError, TypeError) as e:
+            logger.error("LLM call failed: %s", e)
+            return f"Desculpe, encontrei um erro ao processar a resposta: {e}"

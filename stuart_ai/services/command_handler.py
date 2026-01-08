@@ -1,13 +1,14 @@
 import re
 import string
-import asyncio
-from stuart_ai.LLM.ollama_llm import OllamaLLM
+import inspect
 from stuart_ai.agents.web_search_agent import WebSearchAgent
-from stuart_ai.tools import AssistantTools
+from stuart_ai.agents.rag.rag_agent import LocalRAGAgent
+from stuart_ai.tools.system_tools import AssistantTools
 from stuart_ai.core.enums import AssistantSignal
 from stuart_ai.core.logger import logger
 from stuart_ai.services.semantic_router import SemanticRouter
 from stuart_ai.core.memory import ConversationMemory
+from stuart_ai.core.exceptions import LLMResponseError, LLMConnectionError
 
 # A simple, custom tool class to avoid crewai's decorator issues
 class SimpleTool:
@@ -16,39 +17,51 @@ class SimpleTool:
         self.func = func
     
     async def run(self, *args, **kwargs):
-        return await self.func(*args, **kwargs)
+        if inspect.iscoroutinefunction(self.func):
+            return await self.func(*args, **kwargs)
+        else:
+            return self.func(*args, **kwargs)
 
 class CommandHandler:
     """
     Handles the processing of user commands using a fast, keyword-based routing system and a Semantic Router.
     """
 
-    def __init__(self, speak_func, confirmation_func, app_aliases, web_search_agent: WebSearchAgent):
+    def __init__(self, speak_func, confirmation_func, app_aliases, web_search_agent: WebSearchAgent, local_rag_agent: LocalRAGAgent, semantic_router: SemanticRouter, memory: ConversationMemory):
         self.speak = speak_func
         self.confirm = confirmation_func
         self.app_aliases = app_aliases
         self.web_search_agent = web_search_agent 
-        self.semantic_router = SemanticRouter()
-        self.memory = ConversationMemory()
+        self.local_rag_agent = local_rag_agent
+        self.semantic_router = semantic_router
+        self.memory = memory
 
         assistant_tools = AssistantTools(
             speak_func=self.speak,
             confirmation_func=self.confirm,
             app_aliases=self.app_aliases,
-            web_search_agent=self.web_search_agent
+            web_search_agent=self.web_search_agent,
+            local_rag_agent=self.local_rag_agent
         )
 
         # Tools available
         self.tools = {
             "time": SimpleTool(name='_get_time', func=assistant_tools._get_time),
+            "date": SimpleTool(name='_get_date', func=assistant_tools._get_date),
             "joke": SimpleTool(name='_tell_joke', func=assistant_tools._tell_joke),
             "wikipedia": SimpleTool(name='_search_wikipedia', func=assistant_tools._search_wikipedia),
             "weather": SimpleTool(name='_get_weather', func=assistant_tools._get_weather),
             "web_search": SimpleTool(name='_perform_web_search', func=assistant_tools._perform_web_search),
+            "search_local_files": SimpleTool(name='_search_local_files', func=assistant_tools._search_local_files),
+            "index_file": SimpleTool(name='_index_file', func=assistant_tools._index_file),
+            "add_event": SimpleTool(name='_add_calendar_event', func=assistant_tools._add_calendar_event),
+            "delete_event": SimpleTool(name='_delete_calendar_event', func=assistant_tools._delete_calendar_event),
+            "check_calendar": SimpleTool(name='_check_calendar', func=assistant_tools._check_calendar),
             "open_app": SimpleTool(name='_open_app', func=assistant_tools._open_app),
             "shutdown_computer": SimpleTool(name='_shutdown_computer', func=assistant_tools._shutdown_computer),
             "cancel_shutdown": SimpleTool(name='_cancel_shutdown', func=assistant_tools._cancel_shutdown),
-            "quit": SimpleTool(name='_quit', func=assistant_tools._quit)
+            "quit": SimpleTool(name='_quit', func=assistant_tools._quit),
+            "cancel": SimpleTool(name='_cancel', func=lambda: "Tudo bem, comando cancelado.")
         }
 
         # System/Critical commands - kept in Regex for speed and safety
@@ -57,6 +70,10 @@ class CommandHandler:
             (r"\b(desligar|desligue)\b", self.tools["shutdown_computer"]),
             (r"\b(cancele o desligamento|cancelar desligamento)\b", self.tools["cancel_shutdown"]),
             (r"\b(sair|encerrar|tchau)\b", self.tools["quit"]),
+            (r"\b(cancelar|esquece|deixa pra lá|pare|parar)\b", self.tools["cancel"]),
+            (r"\b(que horas (são|tem)|me diga as horas|qual o horário)\b", self.tools["time"]),
+            (r"\b(que dia (é hoje|hoje)|data de hoje|qual a data)\b", self.tools["date"]),
+            (r"\b(conte uma piada|me faça rir|outra piada)\b", self.tools["joke"]),
         ]
 
     def _extract_argument(self, command: str, keyword: str) -> str:
@@ -81,7 +98,7 @@ class CommandHandler:
                 
             return argument
         except (AttributeError, TypeError, ValueError) as e:
-            logger.error(f"Error extracting argument: {e}")
+            logger.error("Error extracting argument: %s", e)
             return ""
 
     async def _handle_open_app(self, command: str, tool_func, matched_keyword: str):
@@ -95,7 +112,7 @@ class CommandHandler:
     async def _execute_system_actions(self, actions, command: str, match):
         """Run the provided system actions and return (result, errored_flag)."""
         tool_to_log = actions[0] if len(actions) == 1 else actions[1]
-        logger.info(f"--- Roteando comando '{command}' para a ação de Sistema: {tool_to_log.name} ---")
+        logger.info("--- Roteando comando '%s' para a ação de Sistema: %s ---", command, tool_to_log.name)
         try:
             if len(actions) == 1:  # Tool without arguments
                 result = await actions[0].run()
@@ -105,7 +122,7 @@ class CommandHandler:
                 result = await handler(command, tool_func, matched_keyword)
             return result, False
         except (AttributeError, TypeError, ValueError) as e:
-            logger.error(f"Error processing command with system router: {e}")
+            logger.error("Error processing command with system router: %s", e)
             await self.speak("Desculpe, ocorreu um erro ao processar o comando de sistema.")
             return None, True
 
@@ -140,19 +157,34 @@ class CommandHandler:
             return
 
         # 2. Smart Path: Semantic Router
-        logger.info(f"--- Roteando comando '{command}' via Semantic Router ---")
+        logger.info("--- Roteando comando '%s' via Semantic Router ---", command)
         
         history = self.memory.get_formatted_history()
-        router_response = await self.semantic_router.route(command, history_str=history)
-        tool_name = router_response.get("tool")
-        args = router_response.get("args")
+        try:
+            router_response = await self.semantic_router.route(command, history_str=history)
+            tool_name = router_response.get("tool")
+            args = router_response.get("args")
+        except LLMResponseError:
+            # Fallback to web search if LLM returns garbage JSON
+            tool_name = "web_search"
+            args = command
+        except LLMConnectionError:
+            # Fallback to general chat if LLM is offline
+            tool_name = "general_chat"
+            args = None
 
         if tool_name == "general_chat":
-             # Simple fallback for now
-             response_text = "Entendi. Como posso ajudar com isso?"
-             self.memory.add_assistant_message(response_text)
-             await self.speak(response_text)
-             return
+            # Simple fallback for now
+            response_text = "Entendi. Como posso ajudar com isso?"
+            self.memory.add_assistant_message(response_text)
+            await self.speak(response_text)
+            return
+
+        if tool_name == "cancel":
+            response_text = "Tudo bem, comando cancelado."
+            self.memory.add_assistant_message(response_text)
+            await self.speak(response_text)
+            return
 
         if tool_name in self.tools:
             tool = self.tools[tool_name]
@@ -165,9 +197,10 @@ class CommandHandler:
                 if result:
                     self.memory.add_assistant_message(str(result))
                     await self.speak(str(result))
-            except Exception as e:
-                logger.error(f"Error executing semantic tool {tool_name}: {e}")
-                await self.speak("Desculpe, tive um problema ao executar essa ação.")
+            except Exception as e: # pylint: disable=broad-except
+                logger.error("Error executing semantic tool %s: %s", tool_name, e, exc_info=True)
+                await self.speak("Desculpe, tive um problema inesperado ao executar essa ação.")
         else:
-            logger.warning(f"--- Ferramenta '{tool_name}' não encontrada ou comando não entendido ---")
+            logger.warning("--- Ferramenta '%s' não encontrada ou comando não entendido ---", tool_name)
             await self.speak("Desculpe, não entendi o que você quis dizer.")
+

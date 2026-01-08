@@ -1,12 +1,13 @@
 import json
 import asyncio
 from typing import Optional, Dict, Any
-from stuart_ai.LLM.ollama_llm import OllamaLLM
+from stuart_ai.llm.ollama_llm import OllamaLLM
 from stuart_ai.core.logger import logger
+from stuart_ai.core.exceptions import LLMConnectionError, LLMResponseError
 
 class SemanticRouter:
-    def __init__(self):
-        self.llm = OllamaLLM().get_llm_instance()
+    def __init__(self, llm):
+        self.llm = llm
 
     async def route(self, command: str, history_str: str = "") -> Dict[str, Any]:
         """
@@ -28,18 +29,27 @@ class SemanticRouter:
         - "joke": Pedidos de piada.
         - "wikipedia": Perguntas de definição ("O que é", "Quem foi"). Argumento: "query".
         - "web_search": Perguntas sobre atualidades, notícias ou buscas complexas. Argumento: "query".
+        - "search_local_files": Perguntas sobre seus documentos ou arquivos locais. Argumento: "query".
+        - "index_file": Pedido para ler/aprender um arquivo novo. Argumento: "file_path".
+        - "add_event": Agendar compromissos. Argumento (JSON): {{"title": "Nome do evento", "datetime": "Data e hora naturais (ex: amanhã as 14h)"}}.
+        - "check_calendar": Consultar agenda. Argumento: "data_para_filtrar" (ou null para ver tudo).
+        - "cancel": O usuário pediu para cancelar, esquecer, ou parar o comando atual. Argumento: null.
         - "general_chat": Conversa casual, cumprimentos ou perguntas que você mesmo pode responder sem ferramentas.
         
         Responda APENAS um objeto JSON no seguinte formato, sem markdown ou explicações:
         {{
             "tool": "nome_da_ferramenta",
-            "args": "argumento_extraido_ou_resolvido_pelo_historico"
+            "args": "argumento_string_ou_objeto_json"
         }}
         
         Exemplos:
         (Histórico vazio) Usuário: "Que horas são?" -> {{"tool": "time", "args": null}}
         (Histórico: User='Tempo em SP?') Usuário: "E no Rio?" -> {{"tool": "weather", "args": "Rio de Janeiro"}}
         (Histórico: User='Quem foi Napoleão?') Usuário: "Onde ele morreu?" -> {{"tool": "wikipedia", "args": "Morte de Napoleão"}}
+        Usuário: "Marque dentista amanhã às 10" -> {{"tool": "add_event", "args": {{"title": "Dentista", "datetime": "amanhã às 10:00"}}}}
+        Usuário: "O que tenho hoje?" -> {{"tool": "check_calendar", "args": "hoje"}}
+        Usuário: "Deixa pra lá" -> {{"tool": "cancel", "args": null}}
+        Usuário: "Cancela" -> {{"tool": "cancel", "args": null}}
         
         Comando atual do usuário: "{command}"
         JSON:
@@ -54,10 +64,9 @@ class SemanticRouter:
             cleaned_response = response.strip().replace("```json", "").replace("```", "").strip()
             
             return json.loads(cleaned_response)
-        except json.JSONDecodeError:
-            logger.error(f"Failed to decode JSON from router response: {response}")
-            # Fallback to general chat or search if parsing fails
-            return {"tool": "web_search", "args": command}
+        except json.JSONDecodeError as e:
+            logger.error("Failed to decode JSON from router response: %s", e)
+            raise LLMResponseError(f"Invalid JSON response from LLM: {cleaned_response}") from e # type: ignore
         except Exception as e:
-            logger.error(f"Error in semantic routing: {e}")
-            return {"tool": "general_chat", "args": None}
+            logger.error("Error in semantic routing: %s", e)
+            raise LLMConnectionError(f"Failed to communicate with LLM: {e}") from e

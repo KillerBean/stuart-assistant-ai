@@ -3,31 +3,46 @@ import uuid
 import platform
 import subprocess
 import asyncio
-import whisper
+
 import wikipedia
-from gtts import gTTS
+import edge_tts
 from playsound import playsound
+from thefuzz import process, fuzz
 import speech_recognition as sr
 from stuart_ai.utils.tmp_file_handler import TempFileHandler
+from stuart_ai.utils.audio_utils import ignore_stderr
 from stuart_ai.services.command_handler import CommandHandler
 from stuart_ai.core.enums import AssistantSignal
 from stuart_ai.core.config import settings
 from stuart_ai.core.logger import logger
+from stuart_ai.core.exceptions import AudioDeviceError, TranscriptionError
 
 from stuart_ai.agents.web_search_agent import WebSearchAgent
-from stuart_ai.tools import AssistantTools
-from stuart_ai.LLM.ollama_llm import OllamaLLM
+from stuart_ai.agents.rag.rag_agent import LocalRAGAgent
 
 
 class Assistant:
-    def __init__(self):
+    def __init__(
+        self,
+        llm,
+        web_search_agent: WebSearchAgent,
+        local_rag_agent: LocalRAGAgent,
+        semantic_router,
+        memory,
+        whisper_model,
+        speech_recognizer: sr.Recognizer
+    ):
         self.keyword = settings.assistant_keyword.lower()
         self.temp_file_path = f"{settings.temp_dir}/temp_audio.wav"
-        self.recognizer = sr.Recognizer()
-        logger.info("Loading Whisper model...")
-        self.model = whisper.load_model("small")
+        
+        self.recognizer = speech_recognizer
+        self.recognizer.energy_threshold = settings.mic_energy_threshold
+        self.recognizer.dynamic_energy_threshold = settings.mic_dynamic_energy_threshold
+        
+        self.model = whisper_model
+        
         wikipedia.set_lang("pt")
-        logger.info("Model loaded.")
+        
         self.app_aliases = {
             "navegador": { 
                 "Linux": "firefox",
@@ -42,21 +57,18 @@ class Assistant:
             # Adicione mais apelidos aqui
         }
 
-        self.llm = OllamaLLM().get_llm_instance()
-
-        self.web_search_agent = WebSearchAgent(llm=self.llm)
-        self.assistant_tools = AssistantTools(
-            speak_func=self.speak,
-            confirmation_func=self.listen_for_confirmation,
-            app_aliases=self.app_aliases,
-            web_search_agent=self.web_search_agent
-        )
+        self.llm = llm
+        self.web_search_agent = web_search_agent
+        self.local_rag_agent = local_rag_agent
 
         self.command_handler = CommandHandler(
             self.speak,
             self.listen_for_confirmation,
             self.app_aliases,
-            self.web_search_agent
+            self.web_search_agent,
+            self.local_rag_agent,
+            semantic_router,
+            memory
         )
 
     async def speak(self, text: str):
@@ -65,28 +77,25 @@ class Assistant:
         """
         temp_audio_file = f"{settings.temp_dir}/response_{uuid.uuid4()}.mp3"
         try:
-            logger.info(f"Assistant: {text}")
-            tts = await asyncio.to_thread(gTTS, text=text, lang='pt-br')
-
-            dir_name = os.path.dirname(temp_audio_file)
-            if not os.path.exists(dir_name):
-                os.makedirs(dir_name)
-
-            await asyncio.to_thread(tts.save, temp_audio_file)
+            logger.info("Assistant: %s", text)
+            
+            # Use Edge TTS for high quality audio
+            communicate = edge_tts.Communicate(text, "pt-BR-AntonioNeural")
+            await communicate.save(temp_audio_file)
 
             system = platform.system()
             if system == "Linux":
                 try:
                     # Use mpg123 on Linux, as playsound can be problematic
                     await asyncio.create_subprocess_exec(
-                        "mpg123", temp_audio_file,
+                        "mpg123", "-q", temp_audio_file,
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL
                     )
                     # We wait a bit or use wait() if we want it to be fully synchronous playback
                     # For now, let's wait for it to finish to mimic original behavior
                     process = await asyncio.create_subprocess_exec(
-                        "mpg123", temp_audio_file,
+                        "mpg123", "-q", temp_audio_file,
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL
                     )
@@ -100,7 +109,7 @@ class Assistant:
                 await asyncio.to_thread(playsound, temp_audio_file)
 
         except Exception as e:
-            logger.error(f"Error in text-to-speech: {e}")
+            logger.error("Error in text-to-speech: %s", e)
         finally:
             if os.path.exists(temp_audio_file):
                 os.remove(temp_audio_file)
@@ -110,10 +119,14 @@ class Assistant:
         await self.speak(prompt)
         try:
             def listen_act():
-                with sr.Microphone() as source:
-                    logger.info("Listening for confirmation...")
-                    self.recognizer.adjust_for_ambient_noise(source, duration=1)
-                    return self.recognizer.listen(source, timeout=5, phrase_time_limit=3)
+                try:
+                    with ignore_stderr():
+                        with sr.Microphone() as source:
+                            logger.info("Listening for confirmation...")
+                            self.recognizer.adjust_for_ambient_noise(source, duration=1)
+                            return self.recognizer.listen(source, timeout=5, phrase_time_limit=3)
+                except OSError as e:
+                    raise AudioDeviceError(f"Could not access microphone: {e}") from e
 
             audio = await asyncio.to_thread(listen_act)
 
@@ -125,17 +138,37 @@ class Assistant:
                     elif isinstance(audio, sr.AudioData):
                         f.write(audio.get_wav_data())
                 
-                result = await asyncio.to_thread(self.model.transcribe, temp_file, language="pt", fp16=False)
+                try:
+                    def transcribe_wrapper():
+                        segments, _ = self.model.transcribe(
+                            temp_file, 
+                            language="pt", 
+                            initial_prompt="Confirmação. Responda apenas Sim ou Não.",
+                            condition_on_previous_text=False
+                        )
+                        return " ".join([segment.text for segment in segments])
+
+                    response_text_raw = await asyncio.to_thread(transcribe_wrapper)
+                except Exception as e:
+                    raise TranscriptionError(f"Transcription failed: {e}") from e
             
-            response_text = str(result['text']).lower().strip()
-            logger.info(f"Confirmation response: '{response_text}'")
+            response_text = response_text_raw.lower().strip()
+            logger.info("Confirmation response: '%s'", response_text)
             return "sim" in response_text
 
         except (sr.WaitTimeoutError, sr.UnknownValueError):
             logger.warning("Could not understand confirmation.")
             return False
+        except AudioDeviceError as e:
+            logger.error("Audio device error during confirmation: %s", e)
+            await self.speak("Desculpe, não consegui acessar o microfone.")
+            return False
+        except TranscriptionError as e:
+            logger.error("Transcription error during confirmation: %s", e)
+            await self.speak("Desculpe, tive um problema ao processar sua voz.")
+            return False
         except Exception as e:
-            logger.error(f"An error occurred during confirmation: {e}")
+            logger.error("An error occurred during confirmation: %s", e)
             return False
 
     async def handle_command(self, text: str):
@@ -143,28 +176,47 @@ class Assistant:
         if not command:
             await self.speak("Sim, em que posso ajudar?")
             return None
-        logger.info(f"Keyword detected! Command: '{command}'")
+        logger.info("Keyword detected! Command: '%s'", command)
         return await self.command_handler.process(command)
 
     async def listen_continuously(self):
         """
         Listens for audio continuously, transcribes it, and checks for the keyword.
         """
+        initial_prompt = (
+            "Transcrição de comandos de voz para o assistente virtual Stuart. "
+            "Palavras-chave: Stuart, abrir, pesquisar, agendar, hora, data, clima, "
+            "cancelar, desligar, tocar, piada, Python, Linux, código."
+        )
+
         logger.info("Adjusting for ambient noise...")
         # Initial adjustment
         def adjust():
-            with sr.Microphone() as source:
-                self.recognizer.adjust_for_ambient_noise(source, duration=1)
+            try:
+                with ignore_stderr():
+                    with sr.Microphone() as source:
+                        self.recognizer.adjust_for_ambient_noise(source, duration=1)
+            except OSError as e:
+                raise AudioDeviceError(f"Could not access microphone: {e}") from e
         
-        await asyncio.to_thread(adjust)
-        
-        logger.info(f"Listening for keyword '{self.keyword}'...")
+        try:
+            await asyncio.to_thread(adjust)
+        except AudioDeviceError as e:
+            logger.critical("Initial microphone access failed: %s", e)
+            await self.speak("Erro crítico: Não consegui encontrar um microfone funcional.")
+            return
+
+        logger.info("Listening for keyword '%s'...", self.keyword)
         
         while True:
             try:
                 def listen_loop():
-                    with sr.Microphone() as source:
-                        return self.recognizer.listen(source)
+                    try:
+                        with ignore_stderr():
+                            with sr.Microphone() as source:
+                                return self.recognizer.listen(source, timeout=None, phrase_time_limit=settings.phrase_time_limit)
+                    except OSError as e:
+                        raise AudioDeviceError(f"Could not access microphone: {e}") from e
 
                 audio = await asyncio.to_thread(listen_loop)
                 logger.debug("Audio captured, processing...")
@@ -178,20 +230,69 @@ class Assistant:
                             f.write(audio.get_wav_data())
                     
                     # Transcribe using Whisper
-                    result = await asyncio.to_thread(self.model.transcribe, temp_file, language="pt", fp16=False)
-                    
-                text = str(result['text']).strip()
-                logger.debug(f"Heard: {text}")
+                    try:
+                        def transcribe_wrapper():
+                            segments, _ = self.model.transcribe(
+                                temp_file, 
+                                language="pt",
+                                initial_prompt=initial_prompt,
+                                condition_on_previous_text=False
+                            )
+                            return " ".join([segment.text for segment in segments])
 
-                if self.keyword in text.lower():
+                        text = await asyncio.to_thread(transcribe_wrapper)
+                    except Exception as e:
+                        raise TranscriptionError(f"Transcription failed: {e}") from e
+                    
+                text = text.strip()
+                if not text:
+                    continue
+                    
+                logger.debug("Heard: %s", text)
+                text_lower = text.lower()
+
+                # 1. Strict Match
+                if self.keyword in text_lower:
+                    logger.info("Wake word detected (strict match): %s", text)
                     result = await self.handle_command(text)
                     if result == AssistantSignal.QUIT:
                         break
+                    continue
+
+                # 2. Fuzzy Match
+                # Check if the keyword is somewhat present
+                # partial_ratio allows "stuart faça isso" to match "stuart" well even if "stuart" is slightly off?
+                # Actually partial_ratio is 100 if the short string is in the long string.
+                # If we have "stewart faça isso", partial ratio of "stuart" might be high.
+                
+                # Let's verify word-by-word to find the trigger
+                words = text_lower.split()
+                if not words:
+                    continue
+                    
+                best_match = process.extractOne(self.keyword, words, scorer=fuzz.ratio)
+                if best_match:
+                    matched_word, score = best_match
+                    if score >= settings.wake_word_confidence:
+                        logger.info("Wake word detected (fuzzy match: '%s', score: %d): %s", matched_word, score, text)
+                        # Replace the wrong word with the correct keyword so handle_command can strip it
+                        # We use replace(..., 1) to only replace the first occurrence
+                        text_fixed = text_lower.replace(matched_word, self.keyword, 1)
+                        result = await self.handle_command(text_fixed)
+                        if result == AssistantSignal.QUIT:
+                            break
 
             except sr.WaitTimeoutError:
                 logger.debug("Listening timed out, listening again...")
             except sr.UnknownValueError:
                 logger.debug("Could not understand audio, listening again...")
+            except AudioDeviceError as e:
+                logger.error("Audio device error: %s", e)
+                await self.speak("Tive um problema com o microfone. Tentando reconectar...")
+                await asyncio.sleep(5)
+            except TranscriptionError as e:
+                logger.error("Transcription error: %s", e)
+                await asyncio.sleep(1)
             except Exception as e:
-                logger.error(f"An unexpected error occurred: {e}")
+                logger.error("An unexpected error occurred: %s", e)
                 await asyncio.sleep(1) # Prevent tight error loop
