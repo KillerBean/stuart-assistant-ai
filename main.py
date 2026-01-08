@@ -58,4 +58,4 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         logger.info("Stuart AI stopped by user.")
     except Exception as e:
-        logger.critical(f"Critical error in main loop: {e}")
+        logger.critical("Critical error in main loop: %s", e)

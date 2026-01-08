@@ -45,7 +45,7 @@ class AssistantTools:
             await self.speak(f"Agendando {title} para {datetime_str}...")
             return self.calendar_manager.add_event(title, datetime_str)
         except Exception as e:
-            logger.error(f"Error adding event: {e}")
+            logger.error("Error adding event: %s", e)
             return "Tive um problema ao salvar o evento."
 
     async def _check_calendar(self, date_str: str | None = None) -> str:
@@ -67,7 +67,7 @@ class AssistantTools:
         try:
             return await self.local_rag_agent.run(query)
         except Exception as e:
-            logger.error(f"Error querying local files: {e}")
+            logger.error("Error querying local files: %s", e)
             return "Desculpe, tive um erro ao consultar seus arquivos."
 
     async def _index_file(self, file_path: str) -> str:
@@ -84,7 +84,7 @@ class AssistantTools:
             await asyncio.to_thread(self.local_rag_agent.document_store.add_document, file_path)
             return f"Arquivo {os.path.basename(file_path)} aprendido com sucesso!"
         except Exception as e:
-            logger.error(f"Error indexing file {file_path}: {e}")
+            logger.error("Error indexing file %s: %s", file_path, e)
             return f"Não consegui ler o arquivo. Verifique se o caminho está correto."
 
 
@@ -110,7 +110,7 @@ class AssistantTools:
                     joke_data = await response.json()
                     return joke_data['joke'] if joke_data.get('type') == 'single' else f"{joke_data['setup']} ... {joke_data['delivery']}"
         except Exception as e:
-            logger.error(f"Error fetching joke from API: {e}")
+            logger.error("Error fetching joke from API: %s", e)
             return "Desculpe, não consegui buscar uma piada agora."
 
     async def _search_wikipedia(self, search_term: str) -> str:
@@ -130,7 +130,7 @@ class AssistantTools:
         except wikipedia.exceptions.DisambiguationError:
             return f"O termo {search_term} é muito vago. Por favor, seja mais específico."
         except Exception as e:
-            logger.error(f"Error searching Wikipedia for '{search_term}': {e}")
+            logger.error("Error searching Wikipedia for '%s': %s", search_term, e)
             return "Desculpe, ocorreu um erro ao pesquisar no Wikipedia."
 
     async def _get_weather(self, city: str) -> str:
@@ -145,7 +145,7 @@ class AssistantTools:
                     response.raise_for_status()
                     return await response.text()
         except Exception as e:
-            logger.error(f"Error getting weather for '{city}': {e}")
+            logger.error("Error getting weather for '%s': %s", city, e)
             return f"Desculpe, não consegui obter a previsão do tempo para {city}."
 
 
@@ -172,7 +172,7 @@ class AssistantTools:
         except FileNotFoundError:
             return f"Desculpe, não consegui encontrar o programa {spoken_name}."
         except Exception as e:
-            logger.error(f"Error opening application: {e}")
+            logger.error("Error opening application: %s", e)
             return f"Ocorreu um erro ao tentar abrir o {spoken_name}."
 
     async def _shutdown_computer(self) -> str:
@@ -186,7 +186,7 @@ class AssistantTools:
                     await asyncio.to_thread(subprocess.run, ["shutdown", "-h", "+1"])
                 return "Ok, desligando o computador em 1 minuto. Adeus!"
             except Exception as e:
-                logger.error(f"Error trying to shutdown: {e}")
+                logger.error("Error trying to shutdown: %s", e)
                 return "Ocorreu um erro ao tentar executar o comando de desligamento."
         else:
             return "Ação de desligamento cancelada."
@@ -201,7 +201,7 @@ class AssistantTools:
                 await asyncio.to_thread(subprocess.run, ["shutdown", "-c"])
             return "Desligamento cancelado."
         except Exception as e:
-            logger.error(f"Error trying to cancel shutdown: {e}")
+            logger.error("Error trying to cancel shutdown: %s", e)
             return "Ocorreu um erro ao tentar cancelar o comando de desligamento."
 
     async def _perform_web_search(self, search_query: str) -> str:
@@ -215,7 +215,7 @@ class AssistantTools:
             result = await asyncio.to_thread(self.web_search_agent.run, search_query)
             return f"A pesquisa retornou o seguinte: {str(result)}"
         except Exception as e:
-            logger.error(f"Error performing web search for '{search_query}': {e}")
+            logger.error("Error performing web search for '%s': %s", search_query, e)
             return "Desculpe, ocorreu um erro ao realizar a pesquisa na web."
 
     async def _quit(self) -> AssistantSignal:

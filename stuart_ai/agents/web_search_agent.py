@@ -10,7 +10,7 @@ class WebSearchAgent:
         """
         Executes a web search and summarizes the results using the LLM.
         """
-        logger.info(f"WebSearchAgent executing query: '{query}'")
+        logger.info("WebSearchAgent executing query: '%s'", query)
         
         try:
             # 1. Execute Search
@@ -36,5 +36,5 @@ class WebSearchAgent:
             return response
 
         except Exception as e:
-            logger.error(f"Web search failed: {e}")
+            logger.error("Web search failed: %s", e)
             return f"Desculpe, encontrei um erro ao pesquisar na web: {e}"

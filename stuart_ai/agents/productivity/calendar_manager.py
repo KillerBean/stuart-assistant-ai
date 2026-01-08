@@ -22,7 +22,7 @@ class CalendarManager:
                         return Calendar()
                     return Calendar(content)
             except Exception as e:
-                logger.error(f"Failed to load calendar: {e}")
+                logger.error("Failed to load calendar: %s", e)
                 return Calendar()
         return Calendar()
 
@@ -32,7 +32,7 @@ class CalendarManager:
             with open(self.calendar_file, 'w') as f:
                 f.writelines(self.calendar) # type: ignore
         except Exception as e:
-            logger.error(f"Failed to save calendar: {e}")
+            logger.error("Failed to save calendar: %s", e)
             raise ToolError("Não foi possível salvar o evento no calendário.")
 
     def add_event(self, title: str, start_str: str, duration_minutes: int = 60) -> str:
@@ -58,7 +58,7 @@ class CalendarManager:
             
             return f"Evento '{title}' agendado para {start_dt.strftime('%d/%m/%Y às %H:%M')}."
         except Exception as e:
-            logger.error(f"Error adding event: {e}")
+            logger.error("Error adding event: %s", e)
             raise ToolError(f"Erro ao agendar evento: {e}")
 
     def list_events(self, date_str: str | None = None) -> str:
@@ -92,7 +92,7 @@ class CalendarManager:
             return "\n".join(result)
 
         except Exception as e:
-            logger.error(f"Error listing events: {e}")
+            logger.error("Error listing events: %s", e)
             return "Erro ao ler a agenda."
 
     def delete_event(self, title: str, date_str: str | None = None) -> str:
@@ -118,5 +118,5 @@ class CalendarManager:
             return f"Evento(s) '{title}' removido(s) com sucesso."
 
         except Exception as e:
-            logger.error(f"Error deleting event: {e}")
+            logger.error("Error deleting event: %s", e)
             raise ToolError(f"Erro ao remover evento: {e}")

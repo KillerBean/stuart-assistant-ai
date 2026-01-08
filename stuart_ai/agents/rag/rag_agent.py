@@ -9,7 +9,7 @@ class LocalRAGAgent:
 
     async def run(self, query: str) -> str:
         """Answers a query using local documents."""
-        logger.info(f"RAG Agent querying: {query}")
+        logger.info("RAG Agent querying: %s", query)
         
         # Retrieve context
         retrieved_docs = self.document_store.search(query)

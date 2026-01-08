@@ -72,7 +72,7 @@ class Assistant:
         """
         temp_audio_file = f"{settings.temp_dir}/response_{uuid.uuid4()}.mp3"
         try:
-            logger.info(f"Assistant: {text}")
+            logger.info("Assistant: %s", text)
             tts = await asyncio.to_thread(gTTS, text=text, lang='pt-br')
 
             dir_name = os.path.dirname(temp_audio_file)
@@ -107,7 +107,7 @@ class Assistant:
                 await asyncio.to_thread(playsound, temp_audio_file)
 
         except Exception as e:
-            logger.error(f"Error in text-to-speech: {e}")
+            logger.error("Error in text-to-speech: %s", e)
         finally:
             if os.path.exists(temp_audio_file):
                 os.remove(temp_audio_file)
@@ -141,22 +141,22 @@ class Assistant:
                     raise TranscriptionError(f"Transcription failed: {e}")
             
             response_text = str(result['text']).lower().strip()
-            logger.info(f"Confirmation response: '{response_text}'")
+            logger.info("Confirmation response: '%s'", response_text)
             return "sim" in response_text
 
         except (sr.WaitTimeoutError, sr.UnknownValueError):
             logger.warning("Could not understand confirmation.")
             return False
         except AudioDeviceError as e:
-            logger.error(f"Audio device error during confirmation: {e}")
+            logger.error("Audio device error during confirmation: %s", e)
             await self.speak("Desculpe, não consegui acessar o microfone.")
             return False
         except TranscriptionError as e:
-            logger.error(f"Transcription error during confirmation: {e}")
+            logger.error("Transcription error during confirmation: %s", e)
             await self.speak("Desculpe, tive um problema ao processar sua voz.")
             return False
         except Exception as e:
-            logger.error(f"An error occurred during confirmation: {e}")
+            logger.error("An error occurred during confirmation: %s", e)
             return False
 
     async def handle_command(self, text: str):
@@ -164,7 +164,7 @@ class Assistant:
         if not command:
             await self.speak("Sim, em que posso ajudar?")
             return None
-        logger.info(f"Keyword detected! Command: '{command}'")
+        logger.info("Keyword detected! Command: '%s'", command)
         return await self.command_handler.process(command)
 
     async def listen_continuously(self):
@@ -183,11 +183,11 @@ class Assistant:
         try:
             await asyncio.to_thread(adjust)
         except AudioDeviceError as e:
-            logger.critical(f"Initial microphone access failed: {e}")
+            logger.critical("Initial microphone access failed: %s", e)
             await self.speak("Erro crítico: Não consegui encontrar um microfone funcional.")
             return
 
-        logger.info(f"Listening for keyword '{self.keyword}'...")
+        logger.info("Listening for keyword '%s'...", self.keyword)
         
         while True:
             try:
@@ -216,7 +216,7 @@ class Assistant:
                         raise TranscriptionError(f"Transcription failed: {e}")
                     
                 text = str(result['text']).strip()
-                logger.debug(f"Heard: {text}")
+                logger.debug("Heard: %s", text)
 
                 if self.keyword in text.lower():
                     result = await self.handle_command(text)
@@ -228,12 +228,12 @@ class Assistant:
             except sr.UnknownValueError:
                 logger.debug("Could not understand audio, listening again...")
             except AudioDeviceError as e:
-                logger.error(f"Audio device error: {e}")
+                logger.error("Audio device error: %s", e)
                 await self.speak("Tive um problema com o microfone. Tentando reconectar...")
                 await asyncio.sleep(5)
             except TranscriptionError as e:
-                logger.error(f"Transcription error: {e}")
+                logger.error("Transcription error: %s", e)
                 await asyncio.sleep(1)
             except Exception as e:
-                logger.error(f"An unexpected error occurred: {e}")
+                logger.error("An unexpected error occurred: %s", e)
                 await asyncio.sleep(1) # Prevent tight error loop

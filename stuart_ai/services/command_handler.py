@@ -1,6 +1,5 @@
 import re
 import string
-from stuart_ai.llm.ollama_llm import OllamaLLM
 from stuart_ai.agents.web_search_agent import WebSearchAgent
 from stuart_ai.agents.rag.rag_agent import LocalRAGAgent
 from stuart_ai.tools.system_tools import AssistantTools
@@ -93,7 +92,7 @@ class CommandHandler:
                 
             return argument
         except (AttributeError, TypeError, ValueError) as e:
-            logger.error(f"Error extracting argument: {e}")
+            logger.error("Error extracting argument: %s", e)
             return ""
 
     async def _handle_open_app(self, command: str, tool_func, matched_keyword: str):
@@ -107,7 +106,7 @@ class CommandHandler:
     async def _execute_system_actions(self, actions, command: str, match):
         """Run the provided system actions and return (result, errored_flag)."""
         tool_to_log = actions[0] if len(actions) == 1 else actions[1]
-        logger.info(f"--- Roteando comando '{command}' para a ação de Sistema: {tool_to_log.name} ---")
+        logger.info("--- Roteando comando '%s' para a ação de Sistema: %s ---", command, tool_to_log.name)
         try:
             if len(actions) == 1:  # Tool without arguments
                 result = await actions[0].run()
@@ -117,7 +116,7 @@ class CommandHandler:
                 result = await handler(command, tool_func, matched_keyword)
             return result, False
         except (AttributeError, TypeError, ValueError) as e:
-            logger.error(f"Error processing command with system router: {e}")
+            logger.error("Error processing command with system router: %s", e)
             await self.speak("Desculpe, ocorreu um erro ao processar o comando de sistema.")
             return None, True
 
@@ -152,7 +151,7 @@ class CommandHandler:
             return
 
         # 2. Smart Path: Semantic Router
-        logger.info(f"--- Roteando comando '{command}' via Semantic Router ---")
+        logger.info("--- Roteando comando '%s' via Semantic Router ---", command)
         
         history = self.memory.get_formatted_history()
         try:
@@ -187,8 +186,9 @@ class CommandHandler:
                     self.memory.add_assistant_message(str(result))
                     await self.speak(str(result))
             except Exception as e:
-                logger.error(f"Error executing semantic tool {tool_name}: {e}")
+                logger.error("Error executing semantic tool %s: %s", tool_name, e)
                 await self.speak("Desculpe, tive um problema ao executar essa ação.")
         else:
-            logger.warning(f"--- Ferramenta '{tool_name}' não encontrada ou comando não entendido ---")
+            logger.warning("--- Ferramenta '%s' não encontrada ou comando não entendido ---", tool_name)
             await self.speak("Desculpe, não entendi o que você quis dizer.")
+

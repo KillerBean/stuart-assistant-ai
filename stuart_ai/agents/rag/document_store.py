@@ -75,11 +75,11 @@ class DocumentStore:
 
     def add_document(self, file_path: str):
         """Processes a file and adds it to the vector store."""
-        logger.info(f"Adding document: {file_path}")
+        logger.info("Adding document: %s", file_path)
         text = self._read_file(file_path)
         
         if not text.strip():
-            logger.warning(f"File {file_path} is empty.")
+            logger.warning("File %s is empty.", file_path)
             return
 
         chunks = self.text_splitter.split_text(text)
@@ -97,7 +97,7 @@ class DocumentStore:
             metadatas=metadatas,
             ids=ids
         )
-        logger.info(f"Added {len(chunks)} chunks from {file_path}")
+        logger.info("Added %d chunks from %s", len(chunks), file_path)
 
     def search(self, query: str, n_results: int = 3) -> list[str]:
         """Searches for relevant document chunks."""
