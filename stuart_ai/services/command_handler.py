@@ -189,9 +189,9 @@ class CommandHandler:
                 if result:
                     self.memory.add_assistant_message(str(result))
                     await self.speak(str(result))
-            except (AttributeError, TypeError, ValueError, LLMResponseError, LLMConnectionError) as e:
-                logger.error("Error executing semantic tool %s: %s", tool_name, e)
-                await self.speak("Desculpe, tive um problema ao executar essa ação.")
+            except Exception as e: # pylint: disable=broad-except
+                logger.error("Error executing semantic tool %s: %s", tool_name, e, exc_info=True)
+                await self.speak("Desculpe, tive um problema inesperado ao executar essa ação.")
         else:
             logger.warning("--- Ferramenta '%s' não encontrada ou comando não entendido ---", tool_name)
             await self.speak("Desculpe, não entendi o que você quis dizer.")

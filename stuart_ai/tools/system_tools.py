@@ -47,9 +47,6 @@ class AssistantTools:
         except (ValueError, TypeError) as e:
             logger.error("Error adding event: %s", e)
             return "Tive um problema ao salvar o evento."
-        except Exception as e:
-            logger.error("Unexpected error adding event: %s", e)
-            return "Ocorreu um erro inesperado ao agendar o evento."
 
     async def _check_calendar(self, date_str: str | None = None) -> str:
         """Consultar agenda."""
@@ -72,9 +69,6 @@ class AssistantTools:
         except (ValueError, TypeError, RuntimeError) as e:
             logger.error("Error querying local files: %s", e)
             return "Desculpe, tive um erro ao consultar seus arquivos."
-        except Exception as e:
-            logger.error("Unexpected error querying local files: %s", e)
-            return "Desculpe, ocorreu um erro inesperado ao consultar seus arquivos."
 
     async def _index_file(self, file_path: str) -> str:
         """Adiciona um arquivo ao índice de busca local. Use quando o usuário pedir para 'ler', 'aprender' ou 'indexar' um arquivo."""
@@ -92,9 +86,6 @@ class AssistantTools:
         except (ValueError, TypeError, RuntimeError, OSError, IOError) as e:
             logger.error("Error indexing file %s: %s", file_path, e)
             return "Não consegui ler o arquivo. Verifique se o caminho está correto."
-        except Exception as e:
-            logger.error("Unexpected error indexing file %s: %s", file_path, e)
-            return "Ocorreu um erro inesperado ao processar o arquivo."
 
 
     def _get_time(self) -> str:
@@ -121,9 +112,6 @@ class AssistantTools:
         except aiohttp.ClientError as e:
             logger.error("Error fetching joke from API: %s", e)
             return "Desculpe, não consegui buscar uma piada agora."
-        except Exception as e:
-            logger.error("Unexpected error fetching joke: %s", e)
-            return "Desculpe, ocorreu um erro inesperado ao buscar uma piada."
 
     async def _search_wikipedia(self, search_term: str) -> str:
         """Pesquisa um termo na Wikipedia e retorna um resumo. Use para perguntas sobre 'o que é' ou 'pesquise sobre'."""
@@ -144,9 +132,6 @@ class AssistantTools:
         except (asyncio.TimeoutError, OSError, RuntimeError) as e:
             logger.error("Error searching Wikipedia for '%s': %s", search_term, e)
             return "Desculpe, ocorreu um erro ao pesquisar no Wikipedia."
-        except Exception as e:
-            logger.error("Unexpected error searching Wikipedia for '%s': %s", search_term, e)
-            return "Desculpe, ocorreu um erro inesperado ao pesquisar no Wikipedia."
 
     async def _get_weather(self, city: str) -> str:
         """Obtém a previsão do tempo para uma cidade específica."""
@@ -162,9 +147,6 @@ class AssistantTools:
         except aiohttp.ClientError as e:
             logger.error("Error getting weather for '%s': %s", city, e)
             return f"Desculpe, não consegui obter a previsão do tempo para {city}."
-        except Exception as e:
-            logger.error("Unexpected error getting weather for '%s': %s", city, e)
-            return "Desculpe, ocorreu um erro inesperado ao obter a previsão do tempo."
 
 
     async def _open_app(self, app_name: str) -> str:
@@ -192,9 +174,6 @@ class AssistantTools:
         except (OSError, subprocess.SubprocessError) as e:
             logger.error("Error opening application: %s", e)
             return f"Ocorreu um erro ao tentar abrir o {spoken_name}."
-        except Exception as e:
-            logger.error("Unexpected error opening application: %s", e)
-            return f"Ocorreu um erro inesperado ao tentar abrir o {spoken_name}."
 
     async def _shutdown_computer(self) -> str:
         """Desliga o computador após uma confirmação do usuário."""
@@ -209,9 +188,6 @@ class AssistantTools:
             except (subprocess.SubprocessError, OSError) as e:
                 logger.error("Error trying to shutdown: %s", e)
                 return "Ocorreu um erro ao tentar executar o comando de desligamento."
-            except Exception as e:
-                logger.error("Unexpected error trying to shutdown: %s", e)
-                return "Ocorreu um erro inesperado ao tentar desligar o computador."
         else:
             return "Ação de desligamento cancelada."
 
@@ -227,9 +203,6 @@ class AssistantTools:
         except (subprocess.SubprocessError, OSError) as e:
             logger.error("Error trying to cancel shutdown: %s", e)
             return "Ocorreu um erro ao tentar cancelar o comando de desligamento."
-        except Exception as e:
-            logger.error("Unexpected error trying to cancel shutdown: %s", e)
-            return "Ocorreu um erro inesperado ao tentar cancelar o desligamento."
 
     async def _perform_web_search(self, search_query: str) -> str:
         """Pesquisa na web usando um agente de IA para encontrar informações sobre um tópico. Use para pesquisas complexas ou quando a Wikipedia não for suficiente."""
@@ -244,9 +217,6 @@ class AssistantTools:
         except (ValueError, TypeError, RuntimeError, OSError) as e:
             logger.error("Error performing web search for '%s': %s", search_query, e)
             return "Desculpe, ocorreu um erro ao realizar a pesquisa na web."
-        except Exception as e:
-            logger.error("Unexpected error performing web search for '%s': %s", search_query, e)
-            return "Desculpe, ocorreu um erro inesperado ao pesquisar na web."
 
     async def _quit(self) -> AssistantSignal:
         """Encerra o assistente. Use quando o usuário disser 'sair', 'encerrar' ou 'tchau'."""
