@@ -73,7 +73,9 @@ class CalendarManager:
                 period_msg = f"para {target_date.strftime('%d/%m/%Y')}"
             else:
                 # List future events by default if no date
-                now = datetime.now(self.calendar.events[0].begin.tzinfo) # type: ignore # Match timezone if possible
+                # self.calendar.events is a set, so we cannot index it.
+                first_event = next(iter(self.calendar.events))
+                now = datetime.now(first_event.begin.tzinfo) # Match timezone if possible
                 # Simple comparison logic depends on tz awareness. ics uses arrow which is tz aware.
                 # Let's just list all sorted.
                 events = sorted(self.calendar.events, key=lambda x: x.begin)
