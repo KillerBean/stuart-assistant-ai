@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     # LLM Configuration
     llm_host: str = "localhost"
     llm_port: int = 11434
-    llm_model: str = "ollama/gemma3:latest"
+    llm_model: str = "gemma3:latest"
     llm_temperature: float = 0.7
     embedding_model: str = "nomic-embed-text"
     
