@@ -73,7 +73,7 @@ class AssistantTools:
     async def _index_file(self, file_path: str) -> str:
         """Adiciona um arquivo ao índice de busca local. Use quando o usuário pedir para 'ler', 'aprender' ou 'indexar' um arquivo."""
         if not file_path:
-             return "Qual arquivo você gostaria que eu aprendesse?"
+            return "Qual arquivo você gostaria que eu aprendesse?"
         
         # Simple cleanup of path if user spoke it (though usually this tool argument comes from semantic router resolving path)
         file_path = file_path.strip().strip('"').strip("'")
@@ -85,15 +85,15 @@ class AssistantTools:
             return f"Arquivo {os.path.basename(file_path)} aprendido com sucesso!"
         except (ValueError, TypeError, RuntimeError, OSError, IOError) as e:
             logger.error("Error indexing file %s: %s", file_path, e)
-            return f"Não consegui ler o arquivo. Verifique se o caminho está correto."
+            return "Não consegui ler o arquivo. Verifique se o caminho está correto."
 
 
-    async def _get_time(self) -> str:
+    def _get_time(self) -> str:
         """Retorna a hora e os minutos atuais. Use esta ferramenta sempre que o usuário perguntar as horas."""
         now = datetime.now().strftime("%H:%M")
         return f"São {now}."
 
-    async def _get_date(self) -> str:
+    def _get_date(self) -> str:
         """Retorna a data atual. Use quando o usuário perguntar que dia é hoje."""
         now = datetime.now()
         # Format: Segunda-feira, 05 de Janeiro de 2026 (requires locale)
