@@ -40,23 +40,24 @@ class CalendarManager:
         try:
             # Parse natural language date string using dateparser
             start_dt = dateparser.parse(start_str)
-            
+
             if not start_dt:
                 raise ToolError(f"Não consegui entender a data: '{start_str}'")
 
-            # If the parsed date is in the past (and no year specified), dateutil might default to current year.
+            # If the parsed date is in the past (and no year specified),
+            # dateutil might default to current year.
             # We assume user means future. Logic could be improved here.
-            
+
             end_dt = start_dt + timedelta(minutes=duration_minutes)
-            
+
             event = Event()
             event.name = title
             event.begin = start_dt
             event.end = end_dt
-            
+
             self.calendar.events.add(event)
             self._save_calendar()
-            
+
             return f"Evento '{title}' agendado para {start_dt.strftime('%d/%m/%Y às %H:%M')}."
         except (ValueError, TypeError) as e:
             logger.error("Error adding event: %s", e)
@@ -72,7 +73,7 @@ class CalendarManager:
                 target_dt = dateparser.parse(date_str)
                 if not target_dt:
                     return f"Não entendi a data '{date_str}'."
-                
+
                 target_date = target_dt.date()
                 events = [e for e in self.calendar.events if e.begin.date() == target_date]
                 period_msg = f"para {target_date.strftime('%d/%m/%Y')}"
@@ -95,7 +96,7 @@ class CalendarManager:
                 # Convert arrow to datetime for strftime
                 start_fmt = event.begin.format('DD/MM/YYYY HH:mm')
                 result.append(f"- {start_fmt}: {event.name}")
-            
+
             return "\n".join(result)
 
         except (ValueError, TypeError) as e:

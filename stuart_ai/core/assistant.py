@@ -35,15 +35,15 @@ class Assistant:
     ):
         self.keyword = settings.assistant_keyword.lower()
         self.temp_file_path = f"{settings.temp_dir}/temp_audio.wav"
-        
+
         self.recognizer = speech_recognizer
         self.recognizer.energy_threshold = settings.mic_energy_threshold
         self.recognizer.dynamic_energy_threshold = settings.mic_dynamic_energy_threshold
-        
+
         self.model = whisper_model
-        
+
         wikipedia.set_lang("pt")
-        
+
         self.app_aliases = {
             "navegador": { 
                 "Linux": "firefox",
@@ -79,7 +79,7 @@ class Assistant:
         temp_audio_file = f"{settings.temp_dir}/response_{uuid.uuid4()}.mp3"
         try:
             logger.info("Assistant: %s", text)
-            
+
             # Use Edge TTS for high quality audio
             communicate = edge_tts.Communicate(text, "pt-BR-AntonioNeural")
             await communicate.save(temp_audio_file)
@@ -138,7 +138,7 @@ class Assistant:
                         await f.write(audio.get_wav_data())
                     elif isinstance(audio, sr.AudioData):
                         await f.write(audio.get_wav_data())
-                
+
                 try:
                     def transcribe_wrapper():
                         segments, _ = self.model.transcribe(
@@ -152,7 +152,7 @@ class Assistant:
                     response_text_raw = await asyncio.to_thread(transcribe_wrapper)
                 except Exception as e:
                     raise TranscriptionError(f"Transcription failed: {e}") from e
-            
+
             response_text = response_text_raw.lower().strip()
             logger.info("Confirmation response: '%s'", response_text)
             return "sim" in response_text
@@ -199,7 +199,7 @@ class Assistant:
                         self.recognizer.adjust_for_ambient_noise(source, duration=1)
             except OSError as e:
                 raise AudioDeviceError(f"Could not access microphone: {e}") from e
-        
+
         try:
             await asyncio.to_thread(adjust)
         except AudioDeviceError as e:
@@ -208,7 +208,7 @@ class Assistant:
             return
 
         logger.info("Listening for keyword '%s'...", self.keyword)
-        
+
         while True:
             try:
                 def listen_loop():
@@ -221,7 +221,7 @@ class Assistant:
 
                 audio = await asyncio.to_thread(listen_loop)
                 logger.debug("Audio captured, processing...")
-                
+
                 with TempFileHandler(self.temp_file_path) as temp_file:
                     async with aiofiles.open(temp_file, "wb") as f:
                         if hasattr(audio, '__iter__') and not isinstance(audio, sr.AudioData):
@@ -229,7 +229,7 @@ class Assistant:
                             await f.write(audio.get_wav_data())
                         elif isinstance(audio, sr.AudioData):
                             await f.write(audio.get_wav_data())
-                    
+
                     # Transcribe using Whisper
                     try:
                         def transcribe_wrapper():
@@ -244,11 +244,11 @@ class Assistant:
                         text = await asyncio.to_thread(transcribe_wrapper)
                     except Exception as e:
                         raise TranscriptionError(f"Transcription failed: {e}") from e
-                    
+
                 text = text.strip()
                 if not text:
                     continue
-                    
+
                 logger.debug("Heard: %s", text)
                 text_lower = text.lower()
 
@@ -265,12 +265,12 @@ class Assistant:
                 # partial_ratio allows "stuart faça isso" to match "stuart" well even if "stuart" is slightly off?
                 # Actually partial_ratio is 100 if the short string is in the long string.
                 # If we have "stewart faça isso", partial ratio of "stuart" might be high.
-                
+                fuzzy_score = fuzz.partial_ratio(self.keyword, text_lower)
                 # Let's verify word-by-word to find the trigger
                 words = text_lower.split()
                 if not words:
                     continue
-                    
+
                 best_match = process.extractOne(self.keyword, words, scorer=fuzz.ratio)
                 if best_match:
                     matched_word = best_match[0]

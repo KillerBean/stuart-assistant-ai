@@ -1,7 +1,6 @@
 import json
 import asyncio
-from typing import Optional, Dict, Any
-from stuart_ai.llm.ollama_llm import OllamaLLM
+from typing import Dict, Any
 from stuart_ai.core.logger import logger
 from stuart_ai.core.exceptions import LLMConnectionError, LLMResponseError
 
@@ -11,7 +10,8 @@ class SemanticRouter:
 
     async def route(self, command: str, history_str: str = "") -> Dict[str, Any]:
         """
-        Analyzes the command and returns the intent and arguments in JSON format, considering conversation history.
+        Analyzes the command and returns the intent and arguments in JSON format,\
+              considering conversation history.
         """
         prompt = f"""
         Você é o cérebro de um assistente virtual chamado Stuart.
@@ -59,10 +59,10 @@ class SemanticRouter:
             # We use the synchronous call inside a thread to avoid blocking the loop
             messages = [{"role": "user", "content": prompt}]
             response = await asyncio.to_thread(self.llm.call, messages)
-            
+
             # Clean up response (remove markdown code blocks if present)
             cleaned_response = response.strip().replace("```json", "").replace("```", "").strip()
-            
+
             return json.loads(cleaned_response)
         except json.JSONDecodeError as e:
             logger.error("Failed to decode JSON from router response: %s", e)

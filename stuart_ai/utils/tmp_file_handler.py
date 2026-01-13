@@ -1,4 +1,5 @@
 import os
+
 class TempFileHandler:
     def __init__(self, temp_file_path):
         self.temp_file_path = temp_file_path
@@ -12,10 +13,10 @@ class TempFileHandler:
     def cleanup_temp_file(self):
         if os.path.exists(self.temp_file_path):
             os.remove(self.temp_file_path)  # Clean up temporary file
-    
+
     def __enter__(self):
         self.create_temp_file()
         return self.temp_file_path
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.cleanup_temp_file()

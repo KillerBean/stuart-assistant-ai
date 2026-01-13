@@ -15,7 +15,7 @@ class SimpleTool:
     def __init__(self, name, func):
         self.name = name
         self.func = func
-    
+
     async def run(self, *args, **kwargs):
         if inspect.iscoroutinefunction(self.func):
             return await self.func(*args, **kwargs)
@@ -24,14 +24,19 @@ class SimpleTool:
 
 class CommandHandler:
     """
-    Handles the processing of user commands using a fast, keyword-based routing system and a Semantic Router.
+    Handles the processing of user commands using a fast,\
+          keyword-based routing system and a Semantic Router.
     """
 
-    def __init__(self, speak_func, confirmation_func, app_aliases, web_search_agent: WebSearchAgent, local_rag_agent: LocalRAGAgent, semantic_router: SemanticRouter, memory: ConversationMemory):
+    def __init__(self, speak_func, confirmation_func,
+                    app_aliases, web_search_agent: WebSearchAgent,
+                    local_rag_agent: LocalRAGAgent,
+                    semantic_router: SemanticRouter,
+                    memory: ConversationMemory):
         self.speak = speak_func
         self.confirm = confirmation_func
         self.app_aliases = app_aliases
-        self.web_search_agent = web_search_agent 
+        self.web_search_agent = web_search_agent
         self.local_rag_agent = local_rag_agent
         self.semantic_router = semantic_router
         self.memory = memory
@@ -83,19 +88,19 @@ class CommandHandler:
             keyword_pos = command.lower().find(keyword.lower())
             if keyword_pos == -1:
                 return ""
-            
+
             # Get the substring after the keyword
             argument = command[keyword_pos + len(keyword):].strip()
-            
+
             # Remove common articles from the beginning of the argument
             articles = ['o', 'a', 'os', 'as']
             arg_list = argument.split()
             if arg_list and arg_list[0].lower() in articles:
                 argument = ' '.join(arg_list[1:])
-            
+
             # Remove trailing punctuation
             argument = argument.rstrip(string.punctuation)
-                
+
             return argument
         except (AttributeError, TypeError, ValueError) as e:
             logger.error("Error extracting argument: %s", e)
@@ -158,7 +163,7 @@ class CommandHandler:
 
         # 2. Smart Path: Semantic Router
         logger.info("--- Roteando comando '%s' via Semantic Router ---", command)
-        
+
         history = self.memory.get_formatted_history()
         try:
             router_response = await self.semantic_router.route(command, history_str=history)
@@ -193,7 +198,7 @@ class CommandHandler:
                     result = await tool.run(args)
                 else:
                     result = await tool.run()
-                
+
                 if result:
                     self.memory.add_assistant_message(str(result))
                     await self.speak(str(result))
@@ -203,4 +208,3 @@ class CommandHandler:
         else:
             logger.warning("--- Ferramenta '%s' não encontrada ou comando não entendido ---", tool_name)
             await self.speak("Desculpe, não entendi o que você quis dizer.")
-

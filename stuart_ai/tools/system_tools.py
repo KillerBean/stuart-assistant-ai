@@ -14,14 +14,16 @@ from stuart_ai.core.enums import AssistantSignal
 from stuart_ai.core.logger import logger
 
 
-
+# pylint: disable=unused-argument
 class AssistantTools:
     """
     A class to encapsulate all the tools available to the assistant's router agent.
     Each tool should return a string to be spoken by the command handler.
     """
 
-    def __init__(self, speak_func, confirmation_func, app_aliases, web_search_agent: WebSearchAgent, local_rag_agent: LocalRAGAgent):
+    def __init__(self, speak_func, confirmation_func,
+                 app_aliases, web_search_agent: WebSearchAgent,
+                 local_rag_agent: LocalRAGAgent):
         self.speak = speak_func
         self.confirm = confirmation_func
         self.app_aliases = app_aliases
@@ -35,10 +37,10 @@ class AssistantTools:
             if isinstance(args, str):
                 # Fallback if LLM returns string
                 return "Preciso que você especifique o título e a hora separadamente."
-            
+
             title = args.get("title")
             datetime_str = args.get("datetime")
-            
+
             if not title or not datetime_str:
                 return "Preciso do nome do evento e da data/hora."
 
@@ -51,16 +53,16 @@ class AssistantTools:
     async def _check_calendar(self, date_str: str | dict | None = None) -> str:
         """Consultar agenda."""
         await self.speak("Consultando sua agenda...")
-        
+
         # Handle dict arguments from LLM (e.g. {"date": "amanhã"})
         if isinstance(date_str, dict):
             # Try common keys
             date_str = date_str.get("date") or date_str.get("datetime") or date_str.get("day") or date_str.get("data")
-        
+
         # If it's still not a string (or was None/empty), pass None to list all
         if not isinstance(date_str, str):
             date_str = None
-            
+
         return await asyncio.to_thread(self.calendar_manager.list_events, date_str)
 
     async def _delete_calendar_event(self, event_title: str) -> str:
@@ -69,10 +71,12 @@ class AssistantTools:
         return await asyncio.to_thread(self.calendar_manager.delete_event, event_title)
 
     async def _search_local_files(self, query: str) -> str:
-        """Pesquisa nos arquivos locais indexados. Use quando o usuário perguntar sobre documentos, arquivos ou 'o que diz o arquivo X'."""
+        """Pesquisa nos arquivos locais indexados.\
+              Use quando o usuário perguntar sobre documentos,\
+                  arquivos ou 'o que diz o arquivo X'."""
         if not query:
             return "O que você gostaria de pesquisar nos seus arquivos?"
-        
+
         await self.speak("Pesquisando nos seus arquivos...")
         try:
             return await self.local_rag_agent.run(query)
@@ -81,13 +85,15 @@ class AssistantTools:
             return "Desculpe, tive um erro ao consultar seus arquivos."
 
     async def _index_file(self, file_path: str) -> str:
-        """Adiciona um arquivo ao índice de busca local. Use quando o usuário pedir para 'ler', 'aprender' ou 'indexar' um arquivo."""
+        """Adiciona um arquivo ao índice de busca local.\
+              Use quando o usuário pedir para 'ler', 'aprender' ou 'indexar' um arquivo."""
         if not file_path:
             return "Qual arquivo você gostaria que eu aprendesse?"
-        
-        # Simple cleanup of path if user spoke it (though usually this tool argument comes from semantic router resolving path)
+
+        # Simple cleanup of path if user spoke it
+        # (though usually this tool argument comes from semantic router resolving path)
         file_path = file_path.strip().strip('"').strip("'")
-        
+
         await self.speak(f"Processando o arquivo {os.path.basename(file_path)}...")
         try:
             # We run the blocking add_document in a thread
@@ -99,7 +105,8 @@ class AssistantTools:
 
 
     def _get_time(self, *args, **kwargs) -> str:
-        """Retorna a hora e os minutos atuais. Use esta ferramenta sempre que o usuário perguntar as horas."""
+        """Retorna a hora e os minutos atuais.\
+              Use esta ferramenta sempre que o usuário perguntar as horas."""
         now = datetime.now().strftime("%H:%M")
         return f"São {now}."
 
@@ -111,9 +118,11 @@ class AssistantTools:
         return f"Hoje é {now.strftime('%d/%m/%Y')}."
 
     async def _tell_joke(self, *args, **kwargs) -> str:
-        """Conta uma piada aleatória em português. Use quando o usuário pedir para contar uma piada."""
+        """Conta uma piada aleatória em português.\
+              Use quando o usuário pedir para contar uma piada."""
         try:
-            url = "https://v2.jokeapi.dev/joke/Any?lang=pt&blacklistFlags=nsfw,religious,political,racist,sexist,explicit"
+            blacklist_flags = "nsfw,religious,political,racist,sexist,explicit"
+            url = "https://v2.jokeapi.dev/joke/Any?lang=pt&blacklistFlags=" + blacklist_flags
             async with aiohttp.ClientSession() as session:
                 async with session.get(url) as response:
                     response.raise_for_status()
@@ -124,16 +133,17 @@ class AssistantTools:
             return "Desculpe, não consegui buscar uma piada agora."
 
     async def _search_wikipedia(self, search_term: str) -> str:
-        """Pesquisa um termo na Wikipedia e retorna um resumo. Use para perguntas sobre 'o que é' ou 'pesquise sobre'."""
+        """Pesquisa um termo na Wikipedia e retorna um resumo.\
+              Use para perguntas sobre 'o que é' ou 'pesquise sobre'."""
         if not search_term:
             return "Claro, o que você gostaria que eu pesquisasse?"
-        
+
         try:
             # wikipedia library is blocking, run in thread
             def get_summary():
                 wikipedia.set_lang("pt")
                 return wikipedia.summary(search_term, sentences=2)
-            
+
             return await asyncio.to_thread(get_summary)
         except wikipedia.exceptions.PageError:
             return f"Desculpe, não encontrei nenhum resultado para {search_term}."
@@ -147,7 +157,7 @@ class AssistantTools:
         """Obtém a previsão do tempo para uma cidade específica."""
         if not city:
             return "Claro, para qual cidade você gostaria da previsão do tempo?"
-        
+
         try:
             url = f"https://wttr.in/{city}?format=3"
             async with aiohttp.ClientSession() as session:
@@ -160,7 +170,8 @@ class AssistantTools:
 
 
     async def _open_app(self, app_name: str) -> str:
-        """Abre ou inicia um programa no computador. Use para comandos como 'abra o chrome' ou 'inicie o vscode'."""
+        """Abre ou inicia um programa no computador.\
+              Use para comandos como 'abra o chrome' ou 'inicie o vscode'."""
         spoken_name = app_name.strip()
         if not spoken_name:
             return "Claro, qual programa você gostaria de abrir?"
@@ -215,11 +226,13 @@ class AssistantTools:
             return "Ocorreu um erro ao tentar cancelar o comando de desligamento."
 
     async def _perform_web_search(self, search_query: str) -> str:
-        """Pesquisa na web usando um agente de IA para encontrar informações sobre um tópico. Use para pesquisas complexas ou quando a Wikipedia não for suficiente."""
+        """Pesquisa na web usando um agente de IA para encontrar informações sobre um tópico.\
+              Use para pesquisas complexas ou quando a Wikipedia não for suficiente."""
         if not search_query:
             return "Claro, o que você gostaria que eu pesquisasse na web?"
-        
-        await self.speak(f"Ok, pesquisando na web sobre {search_query}. Isso pode levar um momento.")
+
+        await self.speak(f"Ok, pesquisando na web sobre {search_query}.\
+                          Isso pode levar um momento.")
         try:
             # Agent run might be blocking, run in thread
             result = await asyncio.to_thread(self.web_search_agent.run, search_query)
@@ -232,4 +245,3 @@ class AssistantTools:
         """Encerra o assistente. Use quando o usuário disser 'sair', 'encerrar' ou 'tchau'."""
         await self.speak("Encerrando a assistente. Até logo!")
         return AssistantSignal.QUIT
-
