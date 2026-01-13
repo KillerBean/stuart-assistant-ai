@@ -4,6 +4,7 @@ import platform
 import subprocess
 import asyncio
 
+import aiofiles
 import wikipedia
 import edge_tts
 from playsound import playsound
@@ -20,7 +21,7 @@ from stuart_ai.core.exceptions import AudioDeviceError, TranscriptionError
 from stuart_ai.agents.web_search_agent import WebSearchAgent
 from stuart_ai.agents.rag.rag_agent import LocalRAGAgent
 
-
+# pylint: disable=broad-except
 class Assistant:
     def __init__(
         self,
@@ -94,13 +95,13 @@ class Assistant:
                     )
                     # We wait a bit or use wait() if we want it to be fully synchronous playback
                     # For now, let's wait for it to finish to mimic original behavior
-                    process = await asyncio.create_subprocess_exec(
+                    proc = await asyncio.create_subprocess_exec(
                         "mpg123", "-q", temp_audio_file,
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL
                     )
-                    await process.wait()
-                except (FileNotFoundError, Exception):
+                    await proc.wait()
+                except Exception:
                     # Fallback to playsound if mpg123 is not available or fails
                     logger.warning("mpg123 not found or failed, falling back to playsound...")
                     await asyncio.to_thread(playsound, temp_audio_file)
@@ -131,12 +132,12 @@ class Assistant:
             audio = await asyncio.to_thread(listen_act)
 
             with TempFileHandler(self.temp_file_path) as temp_file:
-                with open(temp_file, "wb") as f:
+                async with aiofiles.open(temp_file, "wb") as f:
                     if hasattr(audio, '__iter__') and not isinstance(audio, sr.AudioData):
                         audio = next(audio)
-                        f.write(audio.get_wav_data())
+                        await f.write(audio.get_wav_data())
                     elif isinstance(audio, sr.AudioData):
-                        f.write(audio.get_wav_data())
+                        await f.write(audio.get_wav_data())
                 
                 try:
                     def transcribe_wrapper():
@@ -222,18 +223,18 @@ class Assistant:
                 logger.debug("Audio captured, processing...")
                 
                 with TempFileHandler(self.temp_file_path) as temp_file:
-                    with open(temp_file, "wb") as f:
+                    async with aiofiles.open(temp_file, "wb") as f:
                         if hasattr(audio, '__iter__') and not isinstance(audio, sr.AudioData):
                             audio = next(audio)
-                            f.write(audio.get_wav_data())
+                            await f.write(audio.get_wav_data())
                         elif isinstance(audio, sr.AudioData):
-                            f.write(audio.get_wav_data())
+                            await f.write(audio.get_wav_data())
                     
                     # Transcribe using Whisper
                     try:
                         def transcribe_wrapper():
                             segments, _ = self.model.transcribe(
-                                temp_file, 
+                                temp_file,
                                 language="pt",
                                 initial_prompt=initial_prompt,
                                 condition_on_previous_text=False
@@ -272,7 +273,8 @@ class Assistant:
                     
                 best_match = process.extractOne(self.keyword, words, scorer=fuzz.ratio)
                 if best_match:
-                    matched_word, score = best_match
+                    matched_word = best_match[0]
+                    score = best_match[1]
                     if score >= settings.wake_word_confidence:
                         logger.info("Wake word detected (fuzzy match: '%s', score: %d): %s", matched_word, score, text)
                         # Replace the wrong word with the correct keyword so handle_command can strip it

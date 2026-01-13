@@ -43,7 +43,7 @@ class AssistantTools:
                 return "Preciso do nome do evento e da data/hora."
 
             await self.speak(f"Agendando {title} para {datetime_str}...")
-            return self.calendar_manager.add_event(title, datetime_str)
+            return await asyncio.to_thread(self.calendar_manager.add_event, title, datetime_str)
         except (ValueError, TypeError) as e:
             logger.error("Error adding event: %s", e)
             return "Tive um problema ao salvar o evento."
@@ -61,12 +61,12 @@ class AssistantTools:
         if not isinstance(date_str, str):
             date_str = None
             
-        return self.calendar_manager.list_events(date_str)
+        return await asyncio.to_thread(self.calendar_manager.list_events, date_str)
 
     async def _delete_calendar_event(self, event_title: str) -> str:
         """Excluir um compromisso."""
         await self.speak(f"Excluindo o evento {event_title}...")
-        return self.calendar_manager.delete_event(event_title)
+        return await asyncio.to_thread(self.calendar_manager.delete_event, event_title)
 
     async def _search_local_files(self, query: str) -> str:
         """Pesquisa nos arquivos locais indexados. Use quando o usuário perguntar sobre documentos, arquivos ou 'o que diz o arquivo X'."""

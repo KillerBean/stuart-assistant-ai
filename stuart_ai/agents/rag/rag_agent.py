@@ -1,6 +1,5 @@
 from stuart_ai.agents.rag.document_store import DocumentStore
 from stuart_ai.core.logger import logger
-from langchain_core.messages import HumanMessage, SystemMessage
 
 class LocalRAGAgent:
     def __init__(self, llm, document_store: DocumentStore):
@@ -12,7 +11,8 @@ class LocalRAGAgent:
         logger.info("RAG Agent querying: %s", query)
         
         # Retrieve context
-        retrieved_docs = self.document_store.search(query)
+        import asyncio
+        retrieved_docs = await asyncio.to_thread(self.document_store.search, query)
         
         if not retrieved_docs:
             return "Desculpe, não encontrei informações relevantes nos seus documentos indexados."
@@ -37,12 +37,5 @@ class LocalRAGAgent:
             {"role": "user", "content": prompt}
         ]
         
-        # Ensure we are using the raw 'call' method of the injected LLM wrapper (OllamaLLM)
-        # Check if llm is the wrapper or the crewai LLM object.
-        # In main.py: llm = OllamaLLM().get_llm_instance() -> returns a crewai LLM object.
-        # crewai LLM object has a 'call' method? checking docs/code...
-        # Actually crewai LLM might be a wrapper around LiteLLM.
-        # Let's rely on how SemanticRouter calls it: `self.llm.call(messages)`
-        
-        response = self.llm.call(messages)
+        response = await asyncio.to_thread(self.llm.call, messages)
         return response

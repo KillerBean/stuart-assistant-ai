@@ -62,7 +62,7 @@ class DocumentStore:
             if ext == '.pdf':
                 import pypdf
                 text = ""
-                with open(file_path, 'rb') as f:
+                with open(file_path, 'rb', encoding='utf-8') as f:
                     pdf = pypdf.PdfReader(f)
                     for page in pdf.pages:
                         text += page.extract_text() + "\n"
