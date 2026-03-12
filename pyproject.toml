@@ -1,0 +1,45 @@
+[project]
+name = "stuart-ai"
+version = "0.1.0"
+description = "Voice-activated AI assistant for Portuguese (pt-BR)"
+requires-python = ">=3.12"
+dependencies = [
+    "faster-whisper",
+    "SpeechRecognition",
+    "langchain-community",
+    "langchain-core",
+    "langchain-ollama",
+    "langchain-text-splitters",
+    "pydantic-settings",
+    "aiofiles",
+    "aiohttp",
+    "coloredlogs",
+    "dateparser",
+    "edge-tts",
+    "thefuzz",
+    "python-Levenshtein",
+    "wikipedia",
+    "chromadb",
+    "pypdf",
+    "ics",
+    "playsound==1.2.2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "pytest-mock",
+    "pytest-asyncio",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+pythonpath = ["."]
+addopts = "-p no:warnings --strict-markers --cov=stuart_ai --cov-report=html"
+markers = ["asyncio: mark test as async"]
+
+[tool.uv]
+package = false
