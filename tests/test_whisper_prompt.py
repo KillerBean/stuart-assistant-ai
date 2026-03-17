@@ -50,12 +50,11 @@ async def test_transcribe_uses_initial_prompt(mock_components, mocker):
     # Mock speak to avoid actual TTS
     assistant.speak = AsyncMock()
     
-    # Mock sr.Microphone context manager
-    mocker.patch("speech_recognition.Microphone.__enter__", return_value=MagicMock())
-    mocker.patch("speech_recognition.Microphone.__exit__", return_value=None)
-    
-    # Mock ignore_stderr
-    mocker.patch("stuart_ai.utils.audio_utils.ignore_stderr")
+    # Mock sr.Microphone (including constructor) to avoid PyAudio dependency
+    mocker.patch("speech_recognition.Microphone")
+
+    # Mock ignore_stderr where it's used in assistant.py
+    mocker.patch("stuart_ai.core.assistant.ignore_stderr")
 
     # Call confirmation logic
     await assistant.listen_for_confirmation("Teste?")

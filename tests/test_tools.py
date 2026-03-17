@@ -302,9 +302,10 @@ async def test_open_app_exception(assistant_tools_fixture, mocker):
     tools, _, _, _, _, _ = assistant_tools_fixture
     mocker.patch('stuart_ai.tools.system_tools.platform.system', return_value="Linux")
     mocker.patch('stuart_ai.tools.system_tools.subprocess.Popen', side_effect=OSError("Exec Error"))
-    
-    result = await tools._open_app("app")
-    assert "Ocorreu um erro ao tentar abrir" in result
+
+    # Use a whitelisted app so the whitelist check passes and Popen is reached
+    result = await tools._open_app("firefox")
+    assert "Tive um problema ao tentar abrir o" in result
 
 @pytest.mark.asyncio
 async def test_shutdown_exception(assistant_tools_fixture, mocker):
