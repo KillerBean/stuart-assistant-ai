@@ -1,6 +1,7 @@
 # Tasks - Stuart AI
 
 > Checklist consolidado de implementações pendentes. Atualizado em 2026-03-17.
+> Última revisão: incluídas novas tarefas do CLAUDE.md (Structured Logging JSON + Graceful Shutdown).
 
 ---
 
@@ -8,6 +9,8 @@
 
 - [x] **State Management:** `AssistantContext` + `AssistantStatus` em `stuart_ai/core/state.py` — tracking de status (idle/listening/processing/speaking), comando atual, contagem e uptime
 - [x] **Tratamento de erros amigável:** Mensagens de erro em português natural em `_open_app`, agentes de conteúdo e coding
+- [ ] **Structured Logging (JSON):** `stuart_ai/core/logger.py` usa `coloredlogs` — migrar para formato JSON estruturado conforme CLAUDE.md: `{"time":..., "level":..., "module":..., "msg":...}`. Nunca logar texto completo reconhecido (PII).
+- [ ] **Graceful Shutdown:** `main.py` não captura `SIGTERM`/`SIGINT` via `loop.add_signal_handler` nem chama `assistant.shutdown()`. Implementar conforme padrão do CLAUDE.md e criar método `shutdown()` no `Assistant` para fechar conexões Ollama, ChromaDB e TTS.
 
 ---
 
