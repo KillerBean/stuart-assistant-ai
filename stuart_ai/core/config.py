@@ -25,6 +25,17 @@ class Settings(BaseSettings):
     # Memory Configuration
     memory_window_size: int = 10
 
+    # Security: App Whitelist
+    allowed_apps: list[str] = [
+        "firefox", "chromium", "chrome", "code", "terminal",
+        "nautilus", "files", "spotify", "vlc", "discord", "slack",
+        "gedit", "text-editor", "calculator", "gnome-calculator",
+    ]
+
+    # Management API
+    api_enabled: bool = False
+    api_port: int = 8000
+
     # Web Search
     # Add API keys here if you decide to switch to Serper/Google later
     # serper_api_key: str | None = None

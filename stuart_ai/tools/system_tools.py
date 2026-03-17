@@ -12,6 +12,7 @@ from stuart_ai.agents.rag.rag_agent import LocalRAGAgent
 from stuart_ai.agents.productivity.calendar_manager import CalendarManager
 from stuart_ai.core.enums import AssistantSignal
 from stuart_ai.core.logger import logger
+from stuart_ai.core.config import settings
 
 
 # pylint: disable=unused-argument
@@ -23,12 +24,15 @@ class AssistantTools:
 
     def __init__(self, speak_func, confirmation_func,
                  app_aliases, web_search_agent: WebSearchAgent,
-                 local_rag_agent: LocalRAGAgent):
+                 local_rag_agent: LocalRAGAgent,
+                 content_agent=None, coding_agent=None):
         self.speak = speak_func
         self.confirm = confirmation_func
         self.app_aliases = app_aliases
         self.web_search_agent = web_search_agent
         self.local_rag_agent = local_rag_agent
+        self.content_agent = content_agent
+        self.coding_agent = coding_agent
         self.calendar_manager = CalendarManager()
 
     async def _add_calendar_event(self, args: dict | str) -> str:
@@ -177,10 +181,17 @@ class AssistantTools:
             return "Claro, qual programa você gostaria de abrir?"
 
         system = platform.system()
-        executable_name = spoken_name.lower()
 
+        # Resolve alias first
         if spoken_name in self.app_aliases and system in self.app_aliases[spoken_name]:
             executable_name = self.app_aliases[spoken_name][system]
+        else:
+            executable_name = spoken_name.lower()
+
+        # Security: whitelist check
+        if executable_name not in settings.allowed_apps:
+            logger.warning("Blocked attempt to open non-whitelisted app: '%s'", executable_name)
+            return f"Desculpe, não tenho permissão para abrir '{spoken_name}'. Peça ao administrador para adicioná-lo à lista de aplicativos permitidos."
 
         try:
             if system == "Windows":
@@ -191,10 +202,10 @@ class AssistantTools:
                 await asyncio.to_thread(subprocess.Popen, [executable_name])
             return f"Abrindo {spoken_name}."
         except FileNotFoundError:
-            return f"Desculpe, não consegui encontrar o programa {spoken_name}."
+            return f"Desculpe, não encontrei o programa '{spoken_name}' instalado."
         except (OSError, subprocess.SubprocessError) as e:
             logger.error("Error opening application: %s", e)
-            return f"Ocorreu um erro ao tentar abrir o {spoken_name}."
+            return f"Tive um problema ao tentar abrir o {spoken_name}."
 
     async def _shutdown_computer(self, *args, **kwargs) -> str:
         """Desliga o computador após uma confirmação do usuário."""
@@ -245,3 +256,124 @@ class AssistantTools:
         """Encerra o assistente. Use quando o usuário disser 'sair', 'encerrar' ou 'tchau'."""
         await self.speak("Encerrando a assistente. Até logo!")
         return AssistantSignal.QUIT
+
+    # --- Media Controls ---
+
+    async def _media_play_pause(self, *args, **kwargs) -> str:
+        """Alterna play/pause da mídia em reprodução. Requer playerctl instalado."""
+        try:
+            await asyncio.to_thread(subprocess.run, ["playerctl", "play-pause"], check=True)
+            return "Reprodução alternada."
+        except FileNotFoundError:
+            return "playerctl não encontrado. Instale com: sudo apt install playerctl"
+        except (subprocess.SubprocessError, OSError) as e:
+            logger.error("Media play/pause error: %s", e)
+            return "Não consegui controlar a reprodução de mídia."
+
+    async def _media_next(self, *args, **kwargs) -> str:
+        """Avança para a próxima faixa. Requer playerctl instalado."""
+        try:
+            await asyncio.to_thread(subprocess.run, ["playerctl", "next"], check=True)
+            return "Próxima faixa."
+        except FileNotFoundError:
+            return "playerctl não encontrado. Instale com: sudo apt install playerctl"
+        except (subprocess.SubprocessError, OSError) as e:
+            logger.error("Media next error: %s", e)
+            return "Não consegui avançar para a próxima faixa."
+
+    async def _media_previous(self, *args, **kwargs) -> str:
+        """Volta para a faixa anterior. Requer playerctl instalado."""
+        try:
+            await asyncio.to_thread(subprocess.run, ["playerctl", "previous"], check=True)
+            return "Faixa anterior."
+        except FileNotFoundError:
+            return "playerctl não encontrado. Instale com: sudo apt install playerctl"
+        except (subprocess.SubprocessError, OSError) as e:
+            logger.error("Media previous error: %s", e)
+            return "Não consegui voltar para a faixa anterior."
+
+    async def _volume_up(self, *args, **kwargs) -> str:
+        """Aumenta o volume do sistema em 10%. Requer pactl (PulseAudio/PipeWire)."""
+        try:
+            await asyncio.to_thread(
+                subprocess.run,
+                ["pactl", "set-sink-volume", "@DEFAULT_SINK@", "+10%"],
+                check=True
+            )
+            return "Volume aumentado."
+        except FileNotFoundError:
+            return "pactl não encontrado. Verifique se o PulseAudio está instalado."
+        except (subprocess.SubprocessError, OSError) as e:
+            logger.error("Volume up error: %s", e)
+            return "Não consegui aumentar o volume."
+
+    async def _volume_down(self, *args, **kwargs) -> str:
+        """Diminui o volume do sistema em 10%. Requer pactl (PulseAudio/PipeWire)."""
+        try:
+            await asyncio.to_thread(
+                subprocess.run,
+                ["pactl", "set-sink-volume", "@DEFAULT_SINK@", "-10%"],
+                check=True
+            )
+            return "Volume diminuído."
+        except FileNotFoundError:
+            return "pactl não encontrado. Verifique se o PulseAudio está instalado."
+        except (subprocess.SubprocessError, OSError) as e:
+            logger.error("Volume down error: %s", e)
+            return "Não consegui diminuir o volume."
+
+    # --- Content Agent ---
+
+    async def _summarize_url(self, url: str) -> str:
+        """Resume um artigo da web a partir de uma URL."""
+        if not url:
+            return "Qual URL você gostaria que eu resumisse?"
+        if not self.content_agent:
+            return "Agente de conteúdo não está disponível."
+        await self.speak(f"Resumindo o artigo em {url}...")
+        try:
+            return await self.content_agent.summarize_url(url)
+        except (ValueError, RuntimeError) as e:
+            logger.error("Error summarizing URL: %s", e)
+            return "Não consegui resumir o artigo."
+
+    async def _summarize_youtube(self, url: str) -> str:
+        """Resume um vídeo do YouTube a partir da URL."""
+        if not url:
+            return "Qual URL do YouTube você gostaria que eu resumisse?"
+        if not self.content_agent:
+            return "Agente de conteúdo não está disponível."
+        await self.speak("Buscando o transcript do vídeo, aguarde...")
+        try:
+            return await self.content_agent.summarize_youtube(url)
+        except (ValueError, RuntimeError) as e:
+            logger.error("Error summarizing YouTube: %s", e)
+            return "Não consegui resumir o vídeo."
+
+    # --- Coding Agent ---
+
+    async def _explain_error(self, stack_trace: str) -> str:
+        """Explica um stack trace ou mensagem de erro em português."""
+        if not stack_trace:
+            return "Qual erro você gostaria que eu explicasse?"
+        if not self.coding_agent:
+            return "Agente de código não está disponível."
+        await self.speak("Analisando o erro, um momento...")
+        try:
+            return await self.coding_agent.explain_error(stack_trace)
+        except (ValueError, RuntimeError) as e:
+            logger.error("Error explaining error: %s", e)
+            return "Não consegui analisar o erro."
+
+    async def _generate_script(self, description: str) -> str:
+        """Gera um script Python ou Bash com base em uma descrição."""
+        if not description:
+            return "O que você gostaria que o script fizesse?"
+        if not self.coding_agent:
+            return "Agente de código não está disponível."
+        await self.speak(f"Gerando script para: {description}...")
+        try:
+            return await self.coding_agent.generate_script(description)
+        except (ValueError, RuntimeError) as e:
+            logger.error("Error generating script: %s", e)
+            return "Não consegui gerar o script."

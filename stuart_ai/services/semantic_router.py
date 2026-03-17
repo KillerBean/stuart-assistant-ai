@@ -33,6 +33,10 @@ class SemanticRouter:
         - "index_file": Pedido para ler/aprender um arquivo novo. Argumento: "file_path".
         - "add_event": Agendar compromissos. Argumento (JSON): {{"title": "Nome do evento", "datetime": "Data e hora naturais (ex: amanhã as 14h)"}}.
         - "check_calendar": Consultar agenda. Argumento: "data_para_filtrar" (ou null para ver tudo).
+        - "summarize_url": Resumir artigo de uma URL. Argumento: "url".
+        - "summarize_youtube": Resumir vídeo do YouTube. Argumento: "url_do_video".
+        - "explain_error": Explicar um erro ou stack trace. Argumento: "mensagem_de_erro".
+        - "generate_script": Gerar um script Python ou Bash. Argumento: "descrição_da_tarefa".
         - "cancel": O usuário pediu para cancelar, esquecer, ou parar o comando atual. Argumento: null.
         - "general_chat": Conversa casual, cumprimentos ou perguntas que você mesmo pode responder sem ferramentas.
         
