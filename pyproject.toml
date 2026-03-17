@@ -21,8 +21,13 @@ dependencies = [
     "wikipedia",
     "chromadb",
     "pypdf",
-    "ics",
     "playsound==1.2.2",
+    "fastapi",
+    "uvicorn",
+    "trafilatura",
+    "youtube-transcript-api",
+    "icalendar>=7.0.3",
+    "ddgs>=9.11.4",
 ]
 
 [dependency-groups]
