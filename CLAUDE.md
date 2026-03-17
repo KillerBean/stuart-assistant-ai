@@ -88,9 +88,53 @@ Configuration via `.env` file (see `.env.example`):
 
 All settings in `stuart_ai/core/config.py` can be overridden via environment variables.
 
+## Testing
+
+| Nível | O que testa | Mocks | Ferramentas |
+|-------|-------------|-------|-------------|
+| **Unit — lógica pura** | Parsers, formatters, utilitários | ❌ | pytest |
+| **Unit — serviços** | SemanticRouter, CommandHandler, agents | ✅ mock de Ollama, TTS | pytest-mock |
+| **Integration** | Fluxo completo com Ollama real (lento) | ❌ | pytest-asyncio |
+
+```bash
+uv run pytest tests/ -v --cov=stuart_ai --cov-report=html
+```
+
+Mocks: use `pytest-mock` (`mocker.patch`) para isolar chamadas ao Ollama e ao microfone.
+Testes async: decorar com `@pytest.mark.asyncio`.
+
+## Structured Logging
+
+Use o `logging` padrão do Python com formatação estruturada:
+```python
+import logging
+logging.basicConfig(
+    format='{"time":"%(asctime)s","level":"%(levelname)s","module":"%(name)s","msg":"%(message)s"}',
+    level=logging.INFO
+)
+```
+Logar: intent detectada, tool chamada, tempo de resposta do LLM, erros de speech recognition.
+Nunca logar o texto completo reconhecido (pode conter PII).
+
+## Graceful Shutdown
+
+O `asyncio` event loop em `main.py` deve capturar `SIGTERM` e `SIGINT`:
+```python
+import signal, asyncio
+
+async def main():
+    loop = asyncio.get_running_loop()
+    stop = loop.create_future()
+    loop.add_signal_handler(signal.SIGTERM, stop.set_result, None)
+    loop.add_signal_handler(signal.SIGINT, stop.set_result, None)
+    # ... inicia assistant ...
+    await stop
+    await assistant.shutdown()  # fecha conexões Ollama, ChromaDB, TTS
+```
+
 ## Requirements
 
-- Python 3.12+
-- Ollama running locally with models pulled
-- mpg123 for TTS audio playback
+- Python 3.12+ (gerenciado via `uv` — não use pip diretamente)
+- Ollama running locally com modelos pulled: `gemma3:latest`, `qwen2.5:0.5b`
+- mpg123 para playback de TTS (`apt install mpg123`)
 - Working microphone
