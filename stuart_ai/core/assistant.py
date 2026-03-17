@@ -17,6 +17,7 @@ from stuart_ai.core.enums import AssistantSignal
 from stuart_ai.core.config import settings
 from stuart_ai.core.logger import logger
 from stuart_ai.core.exceptions import AudioDeviceError, TranscriptionError
+from stuart_ai.core.state import AssistantContext, AssistantStatus
 
 from stuart_ai.agents.web_search_agent import WebSearchAgent
 from stuart_ai.agents.rag.rag_agent import LocalRAGAgent
@@ -31,7 +32,10 @@ class Assistant:
         semantic_router,
         memory,
         whisper_model,
-        speech_recognizer: sr.Recognizer
+        speech_recognizer: sr.Recognizer,
+        context: AssistantContext | None = None,
+        content_agent=None,
+        coding_agent=None,
     ):
         self.keyword = settings.assistant_keyword.lower()
         self.temp_file_path = f"{settings.temp_dir}/temp_audio.wav"
@@ -61,6 +65,7 @@ class Assistant:
         self.llm = llm
         self.web_search_agent = web_search_agent
         self.local_rag_agent = local_rag_agent
+        self.context = context or AssistantContext()
 
         self.command_handler = CommandHandler(
             self.speak,
@@ -69,13 +74,16 @@ class Assistant:
             self.web_search_agent,
             self.local_rag_agent,
             semantic_router,
-            memory
+            memory,
+            content_agent=content_agent,
+            coding_agent=coding_agent,
         )
 
     async def speak(self, text: str):
         """
         Converts text to speech and plays it.
         """
+        self.context.set_status(AssistantStatus.SPEAKING)
         temp_audio_file = f"{settings.temp_dir}/response_{uuid.uuid4()}.mp3"
         try:
             logger.info("Assistant: %s", text)
@@ -114,6 +122,7 @@ class Assistant:
         finally:
             if os.path.exists(temp_audio_file):
                 os.remove(temp_audio_file)
+            self.context.set_status(AssistantStatus.LISTENING)
 
     async def listen_for_confirmation(self, prompt: str) -> bool:
         """Asks a confirmation question and listens for a 'yes' or 'no' answer."""
@@ -178,7 +187,11 @@ class Assistant:
             await self.speak("Sim, em que posso ajudar?")
             return None
         logger.info("Keyword detected! Command: '%s'", command)
-        return await self.command_handler.process(command)
+        self.context.set_status(AssistantStatus.PROCESSING)
+        self.context.record_command(command)
+        result = await self.command_handler.process(command)
+        self.context.set_status(AssistantStatus.LISTENING)
+        return result
 
     async def listen_continuously(self):
         """
