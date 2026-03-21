@@ -1,22 +1,9 @@
-import re
 import html as html_lib
 
 from langchain_community.tools import DuckDuckGoSearchRun
 from stuart_ai.core.logger import logger
+from stuart_ai.utils.prompt_sanitizer import sanitize_external_content
 from requests.exceptions import RequestException
-
-# Patterns commonly used in prompt injection attacks
-_INJECTION_RE = re.compile(
-    r'ignore\s+(all\s+)?previous\s+instructions?'
-    r'|system\s*:'
-    r'|<\|.*?\|>'           # LLM special tokens like <|im_start|>
-    r'|\[INST\]|\[/INST\]'  # Llama instruction tokens
-    r'|### ?(Human|Assistant|System)\s*:'
-    r'|</?s>',              # Sentence boundary tokens
-    re.IGNORECASE,
-)
-
-_MAX_SEARCH_RESULT_LEN = 4000
 
 
 class WebSearchAgent:
@@ -27,11 +14,7 @@ class WebSearchAgent:
     @staticmethod
     def _sanitize_for_prompt(text: str) -> str:
         """Remove prompt-injection patterns and limit length before embedding in a prompt."""
-        text = text[:_MAX_SEARCH_RESULT_LEN]
-        text = _INJECTION_RE.sub('[CONTEÚDO REMOVIDO]', text)
-        # Escape HTML entities so angle-bracket payloads are inert
-        text = html_lib.escape(text)
-        return text
+        return sanitize_external_content(text)
 
     def run(self, query: str) -> str:
         """
