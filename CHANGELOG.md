@@ -5,6 +5,22 @@ Formato: [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH)
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-03-21
+
+### Security
+- **Path traversal bloqueado em `_index_file()`** — caminhos são resolvidos com `pathlib.Path.resolve()` e validados contra whitelist de diretórios permitidos (`~/Documents`, `~/Downloads`). Tentativas de acessar `/etc/passwd`, `.ssh/id_rsa` etc. são bloqueadas e logadas. Novos config: `INDEX_ALLOWED_DIRS`, `INDEX_ALLOWED_EXTENSIONS`, `INDEX_MAX_FILE_SIZE`
+- **Prompt injection mitigado em WebSearchAgent e RAGAgent** — resultados de buscas e conteúdo de documentos do ChromaDB são sanitizados antes de serem inseridos em prompts LLM. Padrões de injeção comuns (`[INST]`, `<|im_start|>`, `System:`, `ignore previous instructions`) são removidos. Sanitizador centralizado em `utils/prompt_sanitizer.py`
+- **JSON injection no SemanticRouter eliminado** — comando do usuário agora é escapado com `json.dumps()` antes de ser interpolado no prompt do router, impedindo que inputs como `"} {"tool":"quit"` manipulem o roteamento
+- **URL injection em `_get_weather()` corrigida** — nome de cidade validado contra regex `^[a-zA-ZÀ-ÿ\s\-]{1,80}$` e URL-encoded com `urllib.parse.quote()` antes de construir a URL
+- **`shell=True` removido** — `subprocess.Popen` no Windows agora usa `["cmd", "/c", "start", executable_name]` sem shell intermediário
+- **Validação de input em `handle_command()`** — comandos com mais de 500 chars ou com metacaracteres shell (`|`, `;`, `&`, `` ` ``, `$`, `..`) são rejeitados antes de chegar ao router
+- **Schema validation do output do router LLM** — `tool_name` desconhecido redireciona para `web_search` em vez de ser ignorado; `args` com tipo inválido são descartados com warning
+- **Permissões de temp files corrigidas** — diretório `tmp/` criado com `mode=0o700` e arquivo de áudio com `mode=0o600`, impedindo que outros usuários do sistema acessem áudio capturado
+
+### Added
+- `stuart_ai/utils/prompt_sanitizer.py` — módulo compartilhado de sanitização de conteúdo externo para prompts LLM
+- `NEXT-STEPS.md` — roadmap completo de segurança (Tier 1–6) baseado em auditoria do código
+
 ## [0.5.0] - 2026-03-21
 
 ### Added

@@ -66,8 +66,11 @@ stuart_ai/
 │   └── rag/
 │       ├── document_store.py        # ChromaDB wrapper
 │       └── rag_agent.py             # Local document retrieval
-└── tools/
-    └── system_tools.py              # AssistantTools (time, calendar, apps, etc.)
+├── tools/
+│   └── system_tools.py              # AssistantTools (time, calendar, apps, etc.)
+└── utils/
+    ├── prompt_sanitizer.py          # Shared sanitizer for external content in LLM prompts
+    └── tmp_file_handler.py          # Secure temp file lifecycle (mode 0o600)
 ```
 
 **Patterns:**
@@ -85,6 +88,11 @@ Configuration via `.env` file (see `.env.example`):
 | MODEL | gemma3:latest | Main LLM model |
 | ROUTER_MODEL | qwen2.5:0.5b | Fast routing LLM |
 | OLLAMA_API_BASE | http://localhost:11434 | Ollama endpoint |
+| INDEX_ALLOWED_DIRS | `~/Documents,~/Downloads` | Diretórios permitidos para indexação de arquivos |
+| INDEX_ALLOWED_EXTENSIONS | `.txt,.pdf,.md,.docx,.csv` | Extensões permitidas para indexação |
+| INDEX_MAX_FILE_SIZE | `52428800` (50 MB) | Tamanho máximo de arquivo para indexação |
+| API_ENABLED | `false` | Habilita a REST API de gerenciamento |
+| API_PORT | `8000` | Porta da REST API |
 
 All settings in `stuart_ai/core/config.py` can be overridden via environment variables.
 
@@ -131,6 +139,30 @@ async def main():
     await stop
     await assistant.shutdown()  # fecha conexões Ollama, ChromaDB, TTS
 ```
+
+## Security
+
+### Input Validation
+- `handle_command()` rejeita comandos com mais de 500 chars ou com metacaracteres shell (`|`, `;`, `&`, `` ` ``, `$`, `..`, `<script`).
+- O schema JSON retornado pelo router LLM é validado antes do dispatch: `tool_name` deve estar no dict de tools conhecido; `args` deve ser str, dict ou None.
+
+### Path Traversal Protection
+- `_index_file()` resolve caminhos com `pathlib.Path.resolve()` e verifica `is_relative_to()` contra `INDEX_ALLOWED_DIRS`.
+- Arquivos fora dos diretórios permitidos são bloqueados e a tentativa é logada como warning.
+- Extensão e tamanho são validados antes de qualquer I/O.
+
+### Prompt Injection Mitigation
+- Todo conteúdo externo (resultados de busca web, documentos do ChromaDB) passa por `sanitize_external_content()` de `utils/prompt_sanitizer.py` antes de ser inserido em prompts LLM.
+- O comando do usuário é escapado com `json.dumps()` no `SemanticRouter` para prevenir JSON injection.
+- Nunca inserir conteúdo de terceiros diretamente em f-strings de prompt sem passar pelo sanitizador.
+
+### Subprocess Security
+- Nunca usar `shell=True` em chamadas `subprocess`. Sempre usar lista de argumentos.
+- Apps só podem ser abertos se estiverem na whitelist `ALLOWED_APPS` de `config.py`.
+
+### Temp Files
+- Diretório `tmp/` criado com `mode=0o700` (apenas owner).
+- Arquivos de áudio criados com `mode=0o600` via `os.open()` — não world-readable.
 
 ## Requirements
 
