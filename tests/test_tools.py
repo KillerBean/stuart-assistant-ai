@@ -198,22 +198,20 @@ async def test_search_local_files(assistant_tools_fixture):
     assert result == "Conteúdo do arquivo."
 
 @pytest.mark.asyncio
-async def test_index_file(assistant_tools_fixture, mocker):
+async def test_index_file(assistant_tools_fixture, mocker, tmp_path):
     tools, mock_speak, _, _, mock_rag_agent, _ = assistant_tools_fixture
-    
-    # Mock os.path.basename
-    mocker.patch('stuart_ai.tools.system_tools.os.path.basename', return_value="doc.txt")
-    
-    result = await tools._index_file("/path/to/doc.txt")
-    
+
+    # Create a real temp file so exists/is_file/stat checks pass
+    test_file = tmp_path / "doc.txt"
+    test_file.write_text("conteúdo de teste")
+
+    # Allow tmp_path so path-traversal validation passes
+    mocker.patch.object(tools, '_resolve_allowed_dirs', return_value=[tmp_path])
+
+    result = await tools._index_file(str(test_file))
+
     mock_speak.assert_called_once_with("Processando o arquivo doc.txt...")
-    # Since we use asyncio.to_thread, we check if the method was called
-    # However, mocking asyncio.to_thread or the method directly is tricky if we don't mock to_thread.
-    # But checking if add_document was called on the mock object should work if to_thread executes it.
-    # Wait, asyncio.to_thread runs the function in a thread. The mock object is thread-safe mostly.
-    
-    # Let's check if the method was called.
-    mock_rag_agent.document_store.add_document.assert_called_once_with("/path/to/doc.txt")
+    mock_rag_agent.document_store.add_document.assert_called_once_with(str(test_file))
     assert "aprendido com sucesso" in result
 
 @pytest.mark.asyncio
@@ -267,17 +265,16 @@ async def test_search_local_files_exception(assistant_tools_fixture, mocker):
     assert "tive um erro ao consultar seus arquivos" in result
 
 @pytest.mark.asyncio
-async def test_index_file_exception(assistant_tools_fixture, mocker):
+async def test_index_file_exception(assistant_tools_fixture, mocker, tmp_path):
     tools, _, _, _, mock_rag, _ = assistant_tools_fixture
-    # Need to mock os.path.basename or it runs on string
-    mocker.patch('stuart_ai.tools.system_tools.os.path.basename', return_value="file")
-    
-    # Mock to_thread to raise exception
-    # Since we can't easily mock to_thread to raise only for this call without affecting others if running in parallel (but tests are sequential),
-    # we can patch document_store.add_document to raise, and since to_thread runs it, the exception propagates.
+
+    test_file = tmp_path / "file.txt"
+    test_file.write_text("content")
+
+    mocker.patch.object(tools, '_resolve_allowed_dirs', return_value=[tmp_path])
     mock_rag.document_store.add_document.side_effect = IOError("File Read Error")
-    
-    result = await tools._index_file("path")
+
+    result = await tools._index_file(str(test_file))
     assert "Não consegui ler o arquivo" in result
 
 @pytest.mark.asyncio

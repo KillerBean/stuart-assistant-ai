@@ -1,8 +1,11 @@
 import os
+import pathlib
 import platform
+import re
 import subprocess
 import asyncio
 from datetime import datetime
+from urllib.parse import quote as urlquote
 
 import aiohttp
 import wikipedia
@@ -88,23 +91,68 @@ class AssistantTools:
             logger.error("Error querying local files: %s", e)
             return "Desculpe, tive um erro ao consultar seus arquivos."
 
+    def _resolve_allowed_dirs(self) -> list[pathlib.Path]:
+        """Resolve configured allowed directories to absolute paths."""
+        resolved = []
+        for raw in settings.index_allowed_dirs:
+            try:
+                resolved.append(pathlib.Path(raw).expanduser().resolve())
+            except (ValueError, RuntimeError):
+                pass
+        return resolved
+
     async def _index_file(self, file_path: str) -> str:
         """Adiciona um arquivo ao índice de busca local.\
               Use quando o usuário pedir para 'ler', 'aprender' ou 'indexar' um arquivo."""
         if not file_path:
             return "Qual arquivo você gostaria que eu aprendesse?"
 
-        # Simple cleanup of path if user spoke it
-        # (though usually this tool argument comes from semantic router resolving path)
+        # Cleanup quotes that may come from voice transcription
         file_path = file_path.strip().strip('"').strip("'")
 
-        await self.speak(f"Processando o arquivo {os.path.basename(file_path)}...")
+        # Resolve to absolute path to prevent traversal attacks
         try:
-            # We run the blocking add_document in a thread
-            await asyncio.to_thread(self.local_rag_agent.document_store.add_document, file_path)
-            return f"Arquivo {os.path.basename(file_path)} aprendido com sucesso!"
+            resolved = pathlib.Path(file_path).expanduser().resolve()
+        except (ValueError, RuntimeError) as e:
+            logger.warning("Invalid file path rejected: %s — %s", file_path, e)
+            return "Caminho de arquivo inválido."
+
+        # Block path traversal: path must be inside one of the allowed directories
+        allowed_dirs = self._resolve_allowed_dirs()
+        if not any(resolved.is_relative_to(d) for d in allowed_dirs):
+            logger.warning(
+                "Path traversal attempt blocked: '%s' (resolved: '%s')", file_path, resolved
+            )
+            return (
+                "Acesso negado: o arquivo está fora dos diretórios permitidos. "
+                "Apenas arquivos em Documents e Downloads podem ser indexados."
+            )
+
+        # Validate extension
+        allowed_exts = {e.lower() for e in settings.index_allowed_extensions}
+        if resolved.suffix.lower() not in allowed_exts:
+            return (
+                f"Tipo de arquivo não suportado. "
+                f"Extensões permitidas: {', '.join(sorted(allowed_exts))}."
+            )
+
+        # Validate file exists and is a regular file (not a symlink to outside)
+        if not resolved.exists() or not resolved.is_file():
+            return "Arquivo não encontrado. Verifique se o caminho está correto."
+
+        # Validate file size
+        if resolved.stat().st_size > settings.index_max_file_size:
+            limit_mb = settings.index_max_file_size // (1024 * 1024)
+            return f"Arquivo muito grande. O limite é {limit_mb} MB."
+
+        await self.speak(f"Processando o arquivo {resolved.name}...")
+        try:
+            await asyncio.to_thread(
+                self.local_rag_agent.document_store.add_document, str(resolved)
+            )
+            return f"Arquivo {resolved.name} aprendido com sucesso!"
         except (ValueError, TypeError, RuntimeError, OSError, IOError) as e:
-            logger.error("Error indexing file %s: %s", file_path, e)
+            logger.error("Error indexing file '%s': %s", resolved, e)
             return "Não consegui ler o arquivo. Verifique se o caminho está correto."
 
 
@@ -157,20 +205,30 @@ class AssistantTools:
             logger.error("Error searching Wikipedia for '%s': %s", search_term, e)
             return "Desculpe, ocorreu um erro ao pesquisar no Wikipedia."
 
+    # Valid city names: letters (including accented), spaces, hyphens. Max 80 chars.
+    _CITY_RE = re.compile(r'^[a-zA-ZÀ-ÿ\s\-]{1,80}$')
+
     async def _get_weather(self, city: str) -> str:
         """Obtém a previsão do tempo para uma cidade específica."""
         if not city:
             return "Claro, para qual cidade você gostaria da previsão do tempo?"
 
+        city = city.strip()
+
+        # Validate city name before building the URL
+        if not self._CITY_RE.match(city):
+            logger.warning("Invalid city name rejected: '%s'", city)
+            return "Nome de cidade inválido. Por favor, informe apenas o nome da cidade."
+
         try:
-            url = f"https://wttr.in/{city}?format=3"
+            url = f"https://wttr.in/{urlquote(city)}?format=3"
             async with aiohttp.ClientSession() as session:
-                async with session.get(url) as response:
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as response:
                     response.raise_for_status()
                     return await response.text()
         except aiohttp.ClientError as e:
             logger.error("Error getting weather for '%s': %s", city, e)
-            return f"Desculpe, não consegui obter a previsão do tempo para {city}."
+            return "Desculpe, não consegui obter a previsão do tempo agora."
 
 
     async def _open_app(self, app_name: str) -> str:
@@ -195,7 +253,11 @@ class AssistantTools:
 
         try:
             if system == "Windows":
-                await asyncio.to_thread(subprocess.Popen, ['start', executable_name], shell=True)
+                # Use 'cmd /c start' without shell=True to avoid shell injection.
+                # executable_name is already validated against the whitelist above.
+                await asyncio.to_thread(
+                    subprocess.Popen, ["cmd", "/c", "start", executable_name]
+                )
             elif system == "Darwin":
                 await asyncio.to_thread(subprocess.Popen, ['open', '-a', executable_name])
             else:
