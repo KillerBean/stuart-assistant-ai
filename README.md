@@ -11,8 +11,12 @@ Assistente de voz pessoal em português (pt-BR), executado inteiramente de forma
 - **Memória de conversação** — janela deslizante de contexto (deque-based)
 - **Busca na web** — DuckDuckGo com síntese via LLM
 - **RAG local** — indexação e consulta de documentos via ChromaDB
-- **Calendário local** — agendamento, consulta e remoção de eventos (formato `.ics`)
+- **Calendário local** — agendamento, consulta e remoção de eventos (icalendar)
 - **Ferramentas do sistema** — hora, data, clima, Wikipedia, piadas, abertura de apps, desligamento
+- **Agents especializados** — ContentAgent e CodingAgent para análise de conteúdo e assistência de programação
+- **REST API** — FastAPI para controle e integração do assistente
+- **Rastreamento de estado** — AssistantContext para gerência de sessão
+- **Segurança** — App whitelist e controles de mídia
 
 ## Arquitetura
 
@@ -37,13 +41,16 @@ Fala do usuário
 ```
 main.py                              # Ponto de entrada, wiring de dependências
 stuart_ai/
+├── api/
+│   └── app.py                       # FastAPI management API
 ├── core/
 │   ├── assistant.py                 # Orquestrador principal, loop de escuta
 │   ├── config.py                    # Configurações via Pydantic Settings
 │   ├── memory.py                    # ConversationMemory (deque)
+│   ├── state.py                     # AssistantContext para rastreamento de estado
 │   ├── enums.py                     # AssistantSignal
 │   ├── exceptions.py                # Exceções customizadas
-│   └── logger.py                    # Configuração de logging
+│   └── logger.py                    # Logging estruturado
 ├── llm/
 │   └── ollama_llm.py                # Wrapper ChatOllama
 ├── services/
@@ -51,11 +58,13 @@ stuart_ai/
 │   └── command_handler.py           # Roteamento e execução de ferramentas
 ├── agents/
 │   ├── web_search_agent.py          # DuckDuckGo + síntese LLM
+│   ├── content_agent.py             # Análise de conteúdo
+│   ├── coding_agent.py              # Assistência de programação
 │   ├── rag/
 │   │   ├── document_store.py        # Wrapper ChromaDB
 │   │   └── rag_agent.py             # Recuperação de documentos locais
 │   └── productivity/
-│       └── calendar_manager.py      # Gerenciamento de calendário (.ics)
+│       └── calendar_manager.py      # Gerenciamento de calendário (icalendar)
 ├── tools/
 │   └── system_tools.py              # AssistantTools (hora, clima, apps, etc.)
 └── utils/
@@ -104,12 +113,10 @@ stuart_ai/
 git clone <repo-url>
 cd stuart-ai
 
-python -m venv .venv
-source .venv/bin/activate  # Linux/macOS
-# .venv\Scripts\activate   # Windows
+# Instalar dependências com uv
+uv sync
 
-pip install -r requirements.txt
-
+# Copiar e configurar .env
 cp .env.example .env
 # Edite .env conforme necessário
 ```
@@ -162,19 +169,39 @@ Após a inicialização, diga **"Stuart"** seguido do comando desejado.
 - _"Stuart, abra o navegador"_
 - _"Stuart, leia o arquivo /home/usuario/relatorio.pdf"_
 
+## Uso da API REST
+
+A API está disponível via FastAPI (porta padrão: 8000):
+
+```bash
+# Iniciar com API habilitada
+ENABLE_API=true uv run python main.py
+```
+
+**Endpoints principais:**
+- `GET /health` — Status da API
+- `POST /chat` — Enviar mensagem de texto
+- `GET /context` — Obter contexto atual da sessão
+
 ## Comandos de desenvolvimento
 
 ```bash
+# Instalar dependências
+uv sync
+
+# Instalar com dev dependencies
+uv sync --group dev
+
 # Executar testes
-pytest tests/
+uv run pytest tests/
 
 # Testes com saída detalhada
-pytest tests/ -v
+uv run pytest tests/ -v
 
 # Lint
-pylint stuart_ai/
+uv run pylint stuart_ai/
 
-# Atualizar dependências
+# Atualizar lockfile
 bash update-requirements.sh
 ```
 
