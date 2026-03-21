@@ -1,4 +1,5 @@
 import os
+import re
 import uuid
 import platform
 import subprocess
@@ -181,12 +182,29 @@ class Assistant:
             logger.error("An error occurred during confirmation: %s", e)
             return False
 
+    # Characters that have no place in voice commands and signal injection attempts
+    _DANGEROUS_PATTERN = re.compile(r'[|;&`$]|\.\.|<script', re.IGNORECASE)
+    _MAX_COMMAND_LEN = 500
+
     async def handle_command(self, text: str):
         command = text.lower().replace(self.keyword, "").strip().lstrip(",").strip()
         if not command:
             await self.speak("Sim, em que posso ajudar?")
             return None
-        logger.info("Keyword detected! Command: '%s'", command)
+
+        # Input validation: length guard
+        if len(command) > self._MAX_COMMAND_LEN:
+            logger.warning("Command rejected: too long (%d chars)", len(command))
+            await self.speak("Desculpe, o comando é muito longo. Por favor, seja mais breve.")
+            return None
+
+        # Input validation: dangerous character patterns
+        if self._DANGEROUS_PATTERN.search(command):
+            logger.warning("Command rejected: suspicious characters detected")
+            await self.speak("Desculpe, não entendi esse comando.")
+            return None
+
+        logger.info("Keyword detected! Command (length=%d)", len(command))
         self.context.set_status(AssistantStatus.PROCESSING)
         self.context.record_command(command)
         result = await self.command_handler.process(command)
