@@ -55,7 +55,7 @@ class SemanticRouter:
         Usuário: "Deixa pra lá" -> {{"tool": "cancel", "args": null}}
         Usuário: "Cancela" -> {{"tool": "cancel", "args": null}}
         
-        Comando atual do usuário: "{command}"
+        Comando atual do usuário: {json.dumps(command, ensure_ascii=False)}
         JSON:
         """
 
