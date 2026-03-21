@@ -204,6 +204,23 @@ class CommandHandler:
             tool_name = "general_chat"
             args = None
 
+        # Schema validation: reject unexpected tool names returned by the router LLM.
+        # This prevents a compromised or hallucinating router from dispatching to
+        # arbitrary callables outside the known tools dict.
+        SAFE_FALLBACKS = {"general_chat", "cancel"}
+        if tool_name not in self.tools and tool_name not in SAFE_FALLBACKS:
+            logger.warning(
+                "Router returned unknown tool '%s' for command — falling back to web_search",
+                tool_name,
+            )
+            tool_name = "web_search"
+            args = command
+
+        # args must be a plain value (str, dict, or None); reject anything else
+        if args is not None and not isinstance(args, (str, dict, list, int, float, bool)):
+            logger.warning("Router returned unexpected args type %s — discarding", type(args))
+            args = command
+
         if tool_name == "general_chat":
             # Simple fallback for now
             response_text = "Entendi. Como posso ajudar com isso?"
