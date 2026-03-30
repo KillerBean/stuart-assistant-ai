@@ -94,7 +94,7 @@ stuart_ai/
 
 ## Pré-requisitos
 
-- Python 3.12+
+- Python 3.14+
 - [Ollama](https://ollama.ai) rodando localmente com os modelos baixados:
   ```bash
   ollama pull gemma3

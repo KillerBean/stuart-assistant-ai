@@ -5,6 +5,10 @@ Formato: [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH)
 
 ## [Unreleased]
 
+### Changed
+- Reorganização de documentação em `docs/roadmap/` e `docs/tasks/`
+- NEXT-STEPS movido para `docs/roadmap/next-steps.md` com status atualizado
+
 ## [0.6.0] - 2026-03-21 | Security Release
 
 ### Security

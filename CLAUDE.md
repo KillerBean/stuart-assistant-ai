@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Stuart AI is a voice-activated AI assistant for Portuguese (pt-BR) built with Python 3.12+. It runs entirely locally using Ollama for LLM inference and Whisper for speech recognition.
+Stuart AI is a voice-activated AI assistant for Portuguese (pt-BR) built with Python 3.14+. It runs entirely locally using Ollama for LLM inference and Whisper for speech recognition.
 
 ## Commands
 
@@ -166,7 +166,7 @@ async def main():
 
 ## Requirements
 
-- Python 3.12+ (gerenciado via `uv` — não use pip diretamente)
+- Python 3.14+ (gerenciado via `uv` — não use pip diretamente)
 - Ollama running locally com modelos pulled: `gemma3:latest`, `qwen2.5:0.5b`
 - mpg123 para playback de TTS (`apt install mpg123`)
 - Working microphone
