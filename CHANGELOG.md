@@ -5,138 +5,146 @@ Formato: [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH)
 
 ## [Unreleased]
 
-## [0.6.0] - 2026-03-21
+## [0.6.0] - 2026-03-21 | Security Release
 
 ### Security
-- **Path traversal bloqueado em `_index_file()`** — caminhos são resolvidos com `pathlib.Path.resolve()` e validados contra whitelist de diretórios permitidos (`~/Documents`, `~/Downloads`). Tentativas de acessar `/etc/passwd`, `.ssh/id_rsa` etc. são bloqueadas e logadas. Novos config: `INDEX_ALLOWED_DIRS`, `INDEX_ALLOWED_EXTENSIONS`, `INDEX_MAX_FILE_SIZE`
-- **Prompt injection mitigado em WebSearchAgent e RAGAgent** — resultados de buscas e conteúdo de documentos do ChromaDB são sanitizados antes de serem inseridos em prompts LLM. Padrões de injeção comuns (`[INST]`, `<|im_start|>`, `System:`, `ignore previous instructions`) são removidos. Sanitizador centralizado em `utils/prompt_sanitizer.py`
-- **JSON injection no SemanticRouter eliminado** — comando do usuário agora é escapado com `json.dumps()` antes de ser interpolado no prompt do router, impedindo que inputs como `"} {"tool":"quit"` manipulem o roteamento
-- **URL injection em `_get_weather()` corrigida** — nome de cidade validado contra regex `^[a-zA-ZÀ-ÿ\s\-]{1,80}$` e URL-encoded com `urllib.parse.quote()` antes de construir a URL
-- **`shell=True` removido** — `subprocess.Popen` no Windows agora usa `["cmd", "/c", "start", executable_name]` sem shell intermediário
-- **Validação de input em `handle_command()`** — comandos com mais de 500 chars ou com metacaracteres shell (`|`, `;`, `&`, `` ` ``, `$`, `..`) são rejeitados antes de chegar ao router
-- **Schema validation do output do router LLM** — `tool_name` desconhecido redireciona para `web_search` em vez de ser ignorado; `args` com tipo inválido são descartados com warning
-- **Permissões de temp files corrigidas** — diretório `tmp/` criado com `mode=0o700` e arquivo de áudio com `mode=0o600`, impedindo que outros usuários do sistema acessem áudio capturado
+- **Path traversal bloqueado em `_index_file()`** — Caminhos resolvidos com `pathlib.Path.resolve()` validados contra whitelist de diretórios permitidos (`INDEX_ALLOWED_DIRS`). Extensões e tamanho de arquivo validados antes de qualquer I/O.
+- **Prompt injection mitigado em WebSearchAgent e RAGAgent** — Módulo centralizado `utils/prompt_sanitizer.py` sanitiza conteúdo externo (resultados web, documentos ChromaDB) antes de inserção em prompts LLM. Remove padrões de injeção comuns (`[INST]`, `<|im_start|>`, `System:`, etc.).
+- **JSON injection no SemanticRouter eliminado** — Comando do usuário escapado com `json.dumps()` antes de interpolação no prompt do router.
+- **Validação de input em `handle_command()`** — Comandos rejeitados se > 500 chars ou contêm metacaracteres shell (`|`, `;`, `&`, `` ` ``, `$`, `..`).
+- **Schema validation do output router LLM** — `tool_name` desconhecido redireciona para `web_search`; `args` com tipo inválido descartados com warning.
+- **Permissões de temp files corrigidas** — Diretório `tmp/` com `mode=0o700`, arquivos de áudio com `mode=0o600` (owner-only).
 
 ### Added
-- `stuart_ai/utils/prompt_sanitizer.py` — módulo compartilhado de sanitização de conteúdo externo para prompts LLM
-- `NEXT-STEPS.md` — roadmap completo de segurança (Tier 1–6) baseado em auditoria do código
-
-## [0.5.0] - 2026-03-21
-
-### Added
-- Testes unitários para Settings e AssistantContext com cobertura completa
-- Seções de Testing, Structured Logging e Graceful Shutdown na documentação (CLAUDE.md)
-- Tarefas estruturadas para logging e shutdown gracioso (TASKS.md)
-- Checklist de tarefas para rastreamento de progresso
+- `stuart_ai/utils/prompt_sanitizer.py` — Sanitizador compartilhado para conteúdo externo
+- Documentação completa em `docs/` (roadmap, tasks, planning)
+- `docs/roadmap/NEXT-STEPS.md` — Roadmap de segurança (Tier 1–6)
 
 ### Fixed
-- Atualização de testes para comportamento correto de whitelist
-- Alvo de mocks corrigidos em testes de whitelist
-- Comportamento de whitelist validado nos testes
+- URL encoding em `_get_weather()` com `urllib.parse.quote()`
+- Remoção de `shell=True` em chamadas subprocess
 
-### Changed
-- Documentação automática atualizada via git hook
+### Notes
+- Auditoria completa de segurança realizada
+- Projeto preparado para análise de código externo
 
-## [0.4.2] - 2026-03-18
+## [0.5.0] - 2026-03-21 | Testing & Documentation
 
 ### Added
-- **GitHub Actions CI/CD** — Pipeline automático para testes, build e validação
-- **ContentAgent & CodingAgent** — Agentes especializados para análise de conteúdo e assistência de programação
-- **FastAPI Management REST API** — Endpoints para controle remoto do assistente (`/health`, `/chat`, `/context`)
-- **AssistantContext** — Sistema de rastreamento de estado de sessão
-- **App Whitelist & Media Controls** — Segurança aprimorada para execução de aplicativos
+- Testes unitários para `Settings` e `AssistantContext` com cobertura completa
+- Seções de Testing, Structured Logging e Graceful Shutdown em `CLAUDE.md`
+- Documentação automática via git hooks
+- `docs/` directory para organização de planning docs
+
+### Changed
+- Estrutura de documentação centralizada em `docs/`
+- Tarefas organizadas em `docs/tasks/TASKS.md`
+
+## [0.4.2] - 2026-03-18 | CI/CD & Agents
+
+### Added
+- **GitHub Actions CI/CD** — Pipeline automático (testes, lint, build)
+- **ContentAgent** — Resumo de artigos via `trafilatura` e YouTube via `youtube-transcript-api`
+- **CodingAgent** — Explicação de stack traces, geração de scripts, análise de código
+- **FastAPI Management REST API** — Endpoints `/health`, `/chat`, `/context`
+- **AssistantContext** — Rastreamento de estado de sessão (idle/listening/processing/speaking)
+- **App Whitelist & Media Controls** — Validação de aplicativos, controle via `playerctl` e `pactl`
 
 ### Fixed
-- Migração de `ics` para `icalendar` para compatibilidade com Python 3.14
-- Dependências resolvidas para Python 3.14
+- Migração `ics` → `icalendar` para compatibilidade Python 3.14
+- Correção de imports e tipagem
 
 ### Changed
-- Melhor estrutura de projeto com API separada
+- Estrutura de projeto com API separada
+- Dependências atualizadas para Python 3.14+
 
-## [0.4.0] - 2026-03-10
+## [0.4.0] - 2026-03-10 | Dependency Management
 
 ### Added
-- **FastAPI REST API** — Interface HTTP para controle do assistente
-- **ContentAgent** — Análise inteligente de conteúdo
-- **CodingAgent** — Assistência especializada em programação
-- **Gerenciamento com uv** — Migração completa de pip para `uv` (Python package manager)
+- **FastAPI REST API** — Interface HTTP para controle do assistente (porta 8000)
+- **uv Package Manager** — Migração completa de pip para `uv` (mais rápido, determinístico)
 
 ### Changed
-- Python versão mínima elevada para 3.14
-- Migração de `icalendar` para melhor compatibilidade
+- Python versão mínima: 3.14+
+- Lockfile atualizado via `uv sync`
+- Estrutura de dev dependencies organizada
 
-## [0.3.5] - 2026-03-01
+## [0.3.5] - 2026-03-01 | Session State
 
 ### Added
-- **AssistantContext** — Rastreamento robusto de estado de sessão
-- **App Whitelist** — Controle de segurança para aplicativos
-- **Signal Handlers** — Suporte para SIGTERM/SIGINT
+- **AssistantContext** — Rastreamento robusto de estado (`stuart_ai/core/state.py`)
+- **App Whitelist** — Segurança para `_open_app()` com lista de aplicativos permitidos
 
 ### Fixed
 - Correcções de lint (pylint)
-- Melhorias de performance na audição
+- Melhorias de performance em audição e processamento
 
-### Changed
-- Refinamentos na estrutura de projeto
+## [0.3.0] - 2026-02-15 | Semantic Routing & Memory
 
-## [0.3.0] - 2026-02-15
+Major refactoring com arquitetura completamente refeita:
 
 ### Added
-- **Semantic Router LLM-based** — Classificação inteligente de intenção com modelo leve (qwen2.5:0.5b)
-- **Conversation Memory** — Memória em janela deslizante (deque) para contexto persistente
-- **Async I/O Completo** — Refatoração total para asyncio com `asyncio.to_thread()`
-- **Dependency Injection** — Padrão DI em todas as classes
-- **Custom Exception System** — Sistema robusto de exceções customizadas
+- **Semantic Router LLM-based** — Classificação inteligente de intenção com modelo leve (`qwen2.5:0.5b`)
+- **Conversation Memory** — Memória em janela deslizante (deque-based) para contexto persistente
+- **Async I/O First** — Refatoração total para asyncio; chamadas bloqueantes via `asyncio.to_thread()`
+- **Dependency Injection** — Padrão DI consistente em todas as classes
+- **Custom Exception System** — Exceções customizadas em `stuart_ai/core/exceptions.py`
 - **RAG Agent** — Indexação e consulta de documentos locais via ChromaDB
-- **Test Suite Inicial** — Testes com pytest e pytest-asyncio
-- **Logging Estruturado** — Sistema de logging centralizado
-- **Configuração Centralizada** — Pydantic Settings com `.env`
+- **Test Suite** — Testes com pytest e pytest-asyncio
+- **Logging Estruturado** — Sistema centralizado com coloredlogs
+- **Pydantic Settings** — Configuração centralizada via `.env`
 
 ### Fixed
-- Métodos cancelados funcionando corretamente
+- Métodos de cancelamento funcionando corretamente
 - Bugs na listagem de eventos do calendário
 - Tipagem de argumentos no CommandHandler
 - Chamadas síncronas ao LLM tornadas assíncronas
 
 ### Changed
-- Roteamento migrado de regex para LLM-based semantic routing
+- Roteamento: regex → LLM-based semantic routing
 - TTS melhorado com suporte a múltiplos modelos
-- Arquitetura refatorada para padrão de injeção de dependência
-- Performance otimizada na audição e processamento
+- Arquitetura: procedural → DI + async patterns
+- Performance otimizada em audição e processamento
 
-## [0.2.0] - 2026-01-30
+### Notes
+- PR #5: Async refactoring e memória de conversação
+- Alicerce para agentes especializados
+
+## [0.2.0] - 2026-01-30 | Web & Calendar
 
 ### Added
-- **Web Search Agent** — Busca na web via DuckDuckGo com síntese LLM
-- **Calendar Management** — Agendamento, consulta e remoção de eventos (icalendar)
-- **System Tools** — Hora, data, clima, Wikipedia, piadas, abertura de apps
-- **Shutdown Command** — Desligamento do computador com confirmação
-- **Tool System** — Arquitetura genérica e extensível de ferramentas
-- **Logging Centralizado** — Sistema de log estruturado
-- **Configuração via .env** — Suporte a Pydantic Settings
+- **Web Search Agent** — Busca via DuckDuckGo com síntese LLM
+- **Calendar Management** — Agendamento, consulta e remoção de eventos (`icalendar`)
+- **System Tools** — Hora, data, clima (wttr.in), Wikipedia, piadas (JokeAPI), abertura de apps, desligamento com confirmação
+- **Tool System** — Arquitetura genérica e extensível
+- **Logging Centralizado** — Sistema estruturado
+- **Pydantic Settings** — Configuração via `.env`
 
 ### Fixed
 - Erros de tipagem e imports
 - Chamadas síncronas ao LLM
 
 ### Changed
-- Separação em arquivos estruturados
+- Separação de lógica em arquivos estruturados
 - Injeção de dependência em CommandHandler
 
-## [0.1.0] - 2025-12-15
+### Notes
+- PR #4: Refatoração de testes e estrutura
+- PR #3: Web Search Agent (removeu CrewAI posteriormente)
+
+## [0.1.0] - 2025-12-15 | Initial Release
 
 ### Added
 - **Core Features**
-  - Ativação por voz com palavra-chave configurável ("stuart")
-  - Reconhecimento de fala offline com Faster Whisper
-  - Síntese de voz com Edge TTS (pt-BR-AntonioNeural)
-  - Resposta em voz natural
-  - Roteamento de comandos via regex
+  - ✅ Ativação por voz com palavra-chave ("stuart")
+  - ✅ Reconhecimento de fala offline (Faster Whisper)
+  - ✅ Síntese de voz (Edge TTS, pt-BR-AntonioNeural)
+  - ✅ Resposta em voz natural
 
 - **System Tools**
   - Hora e data
-  - Previsão do tempo (API externa)
-  - Piadas (JokeAPI)
+  - Previsão do tempo
+  - Piadas
   - Wikipedia search
   - Abertura de aplicativos
   - Desligamento do computador
@@ -149,28 +157,33 @@ Formato: [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH)
   - Suporte a múltiplos modelos Ollama
 
 ### Notes
-- Primeiro release com funcionalidades básicas
 - Suporte completo a português (pt-BR)
 - Arquitetura preparada para extensões futuras
+- PRs #1 & #2: Setup inicial + comandos de produtividade
 
 ---
 
-## Histórico de Mudanças Importantes
+## Timeline de Desenvolvimento
 
-### Major Refactorings
-- **#6 (2026-02)**: Melhorias gerais e otimizações
-- **#5 (2026-02)**: Async refactoring e memória de conversação
-- **#4 (2026-01)**: Refatoração de testes e estrutura
-- **#3 (2026-01)**: Web Search Agent (removeu CrewAI depois)
-- **#2 (2025-12)**: Comandos e ferramentas de produtividade
-- **#1 (2025-12)**: Setup inicial
+| Período | Versão | Foco |
+|---------|--------|------|
+| 2025-12 | v0.1.0 | Setup inicial, core features |
+| 2026-01 | v0.2.0 | Web search, calendário |
+| 2026-02 | v0.3.0 | Semantic router, async, RAG |
+| 2026-03-01 | v0.3.5 | State management |
+| 2026-03-10 | v0.4.0 | FastAPI, uv migration |
+| 2026-03-18 | v0.4.2 | CI/CD, agents (content/coding) |
+| 2026-03-21 | v0.5.0 | Tests, documentação |
+| 2026-03-21 | v0.6.0 | Security hardening |
 
-### Tecnologias & Dependências
-- **Python 3.12+** (com upgrade para 3.14+)
-- **Ollama** — Inferência local de LLMs
+## Dependências Principais
+
+- **Python 3.14+**
+- **Ollama** — Inferência local LLM
 - **Faster Whisper** — Reconhecimento de fala
-- **ChromaDB** — Indexação de documentos
+- **ChromaDB** — Indexação de documentos (RAG)
 - **FastAPI** — REST API
 - **Edge TTS** — Síntese de voz
 - **DuckDuckGo API** — Busca na web
 - **icalendar** — Gerenciamento de calendário
+- **uv** — Package manager

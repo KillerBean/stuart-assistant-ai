@@ -156,7 +156,8 @@ TEMP_DIR=tmp
 ## Uso
 
 ```bash
-python main.py
+# Modo interativo (voz)
+uv run python main.py
 ```
 
 Após a inicialização, diga **"Stuart"** seguido do comando desejado.
@@ -169,44 +170,56 @@ Após a inicialização, diga **"Stuart"** seguido do comando desejado.
 - _"Stuart, abra o navegador"_
 - _"Stuart, leia o arquivo /home/usuario/relatorio.pdf"_
 
-## Uso da API REST
+## REST API
 
-A API está disponível via FastAPI (porta padrão: 8000):
+A API FastAPI está disponível (porta padrão: 8000):
 
 ```bash
 # Iniciar com API habilitada
-ENABLE_API=true uv run python main.py
+API_ENABLED=true uv run python main.py
 ```
 
 **Endpoints principais:**
 - `GET /health` — Status da API
-- `POST /chat` — Enviar mensagem de texto
+- `POST /chat` — Enviar mensagem de texto para processamento
 - `GET /context` — Obter contexto atual da sessão
+- `GET /logs` — Ver logs estruturados (se disponível)
 
-## Comandos de desenvolvimento
+## Desenvolvimento
 
 ```bash
 # Instalar dependências
 uv sync
 
-# Instalar com dev dependencies
+# Instalar com dev dependencies (testes, lint)
 uv sync --group dev
 
-# Executar testes
-uv run pytest tests/
-
-# Testes com saída detalhada
+# Executar todos os testes
 uv run pytest tests/ -v
 
-# Lint
+# Executar teste específico
+uv run pytest tests/test_semantic_router.py -v
+
+# Lint com pylint
 uv run pylint stuart_ai/
+
+# Cobertura de testes
+uv run pytest tests/ --cov=stuart_ai --cov-report=html
 
 # Atualizar lockfile
 bash update-requirements.sh
 ```
 
-## Padrões de código
+## Padrões de Código
 
-- **Async-first**: Todo I/O usa `asyncio`; chamadas bloqueantes são executadas via `asyncio.to_thread()`
-- **Injeção de dependência**: Todos os serviços são passados via construtor
+- **Async-first**: Todo I/O usa `asyncio`; chamadas bloqueantes via `asyncio.to_thread()`
+- **Injeção de dependência**: Serviços passados via construtor
 - **Roteamento semântico**: Classificação de intenção via LLM em vez de regex
+- **Sanitização de conteúdo**: Conteúdo externo (web, RAG) sanitizado antes de prompts LLM
+
+## Documentação Adicional
+
+- **[CHANGELOG.md](CHANGELOG.md)** — Histórico completo de versões
+- **[CLAUDE.md](CLAUDE.md)** — Instruções para Claude Code
+- **[docs/roadmap/NEXT-STEPS.md](docs/roadmap/NEXT-STEPS.md)** — Roadmap de segurança (Tier 1–6)
+- **[docs/tasks/TASKS.md](docs/tasks/TASKS.md)** — Checklist de implementações
