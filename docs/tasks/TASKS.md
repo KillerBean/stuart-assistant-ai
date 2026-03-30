@@ -1,7 +1,7 @@
 # Tasks - Stuart AI
 
-> Checklist consolidado de implementações pendentes. Atualizado em 2026-03-17.
-> Última revisão: incluídas novas tarefas do CLAUDE.md (Structured Logging JSON + Graceful Shutdown).
+> Checklist consolidado de implementações pendentes. Atualizado em 2026-03-30.
+> Última revisão: marcados itens de segurança concluídos na v0.6.0, adicionados pendentes identificados.
 
 ---
 
@@ -32,7 +32,17 @@
 ## 🔒 Segurança
 
 - [x] **Whitelist de aplicativos:** `allowed_apps` em `config.py` — `_open_app` bloqueia apps não listados e loga a tentativa
-- [ ] **Sanitização de inputs:** Prevenir prompt injection nos agentes
+- [x] **Path traversal:** `_index_file()` bloqueia caminhos fora de `INDEX_ALLOWED_DIRS`
+- [x] **Prompt injection (web search + RAG):** `utils/prompt_sanitizer.py` sanitiza conteúdo externo antes de inserir em prompts
+- [x] **Input validation:** `handle_command()` rejeita entradas > 500 chars e com metacaracteres shell
+- [x] **Router LLM output validation:** `tool_name` e `args` validados antes do dispatch
+- [x] **JSON injection no router:** `json.dumps()` no prompt do `SemanticRouter`
+- [x] **Temp files:** diretório `tmp/` com `0o700`, arquivos de áudio com `0o600`
+- [ ] **URL injection em `get_weather()`:** `system_tools.py:166` — city sem `urllib.parse.quote()`
+- [ ] **API sem autenticação:** `api/app.py` expõe endpoints em `0.0.0.0` sem API key
+- [ ] **ICS injection:** `calendar_manager.py` — título de evento sem sanitização
+- [ ] **Prompt injection via `ConversationMemory`:** histórico inserido no prompt sem sanitização
+- [ ] **Rate limiting e CORS:** FastAPI sem `slowapi` ou CORS policy
 
 ---
 
@@ -40,6 +50,9 @@
 
 - [x] **API REST (FastAPI):** `stuart_ai/api/app.py` — endpoints `/status`, `/agents/list`, `/logs`; habilitado via `API_ENABLED=true`
 - [x] **CI/CD (GitHub Actions):** `.github/workflows/ci.yml` — lint (pylint ≥7.0) + testes (pytest) a cada push
+- [ ] **Graceful Shutdown:** `main.py` sem `loop.add_signal_handler(SIGTERM/SIGINT)` e sem `assistant.shutdown()`
+- [ ] **Bandit / pip-audit no CI:** análise estática de segurança ausente do pipeline
+- [ ] **Docker:** `Dockerfile` multi-stage, non-root user, não existe ainda
 
 ---
 
@@ -47,9 +60,13 @@
 
 - [x] **Aumentar cobertura:** `tests/test_settings.py` — 12 testes para `Settings` (defaults, overrides, edge cases)
 - [ ] **Mocks para CI:** Mocks de LLM e áudio para rodar suite completa sem hardware real
+- [ ] **Testes de segurança:** path traversal, prompt injection, API auth, command injection (ver TIER 4 em NEXT-STEPS.md)
+- [ ] **Fuzzing com `hypothesis`:** `handle_command()` com inputs aleatórios
 
 ---
 
 ## 📚 Documentação
 
 - [ ] **README `agents/`:** Documentar arquitetura dos agentes, capacidades e como invocar cada um
+- [ ] **SECURITY.md:** Responsible disclosure policy, threat model, limitações conhecidas
+- [ ] **Deployment guide:** Setup seguro em produção (CLAUDE.md ou doc dedicado)

@@ -9,16 +9,16 @@
 
 Estes foram identificados lendo o código real — mais graves que vários itens do Tier 1 original:
 
-| Risco | Arquivo:Linha | Severidade |
-|-------|---------------|-----------|
-| **Path traversal em `_index_file()`** — indexa qualquer arquivo do sistema (`.ssh/id_rsa`, `.env`, `/etc/passwd`) | `system_tools.py:91`, `document_store.py:57` | 🔴 CRÍTICO |
-| **Prompt injection via web search** — output do DuckDuckGo inserido direto no prompt LLM sem sanitização | `web_search_agent.py:28` | 🔴 CRÍTICO |
-| **URL injection em `wttr.in`** — cidade do usuário em URL sem encoding | `system_tools.py:166` | 🟠 ALTA |
-| **Sem validação do schema JSON do router LLM** — `tool_name` e `args` usados sem verificação | `command_handler.py:220-224` | 🟠 ALTA |
-| **TOCTOU em temp files** — race condition entre criação e uso do arquivo de áudio | `tmp_file_handler.py:8-10` | 🟡 MÉDIA |
-| **ICS injection** — título de evento inserido no calendário sem sanitização | `calendar_manager.py:52-56` | 🟡 MÉDIA |
-| **Prompt injection via histórico** — mensagens da `ConversationMemory` injetadas no prompt sem sanitização | `memory.py:20-26` | 🟡 MÉDIA |
-| **DoS no ChromaDB** — sem limite de documentos ou tamanho máximo de coleção | `document_store.py:104` | 🟡 MÉDIA |
+| Risco | Arquivo:Linha | Severidade | Status |
+|-------|---------------|-----------|--------|
+| **Path traversal em `_index_file()`** | `system_tools.py:91`, `document_store.py:57` | 🔴 CRÍTICO | ✅ v0.6.0 |
+| **Prompt injection via web search** | `web_search_agent.py:28` | 🔴 CRÍTICO | ✅ v0.6.0 |
+| **URL injection em `wttr.in`** | `system_tools.py:166` | 🟠 ALTA | ❌ Pendente |
+| **Sem validação do schema JSON do router LLM** | `command_handler.py:220-224` | 🟠 ALTA | ✅ v0.6.0 |
+| **TOCTOU em temp files** | `tmp_file_handler.py:8-10` | 🟡 MÉDIA | ⚠️ Parcial (permissões ok, TOCTOU não resolvido) |
+| **ICS injection** | `calendar_manager.py:52-56` | 🟡 MÉDIA | ❌ Pendente |
+| **Prompt injection via histórico** | `memory.py:20-26` | 🟡 MÉDIA | ❌ Pendente |
+| **DoS no ChromaDB** | `document_store.py:104` | 🟡 MÉDIA | ❌ Pendente |
 
 ---
 
@@ -49,11 +49,11 @@ async def _index_file(self, args):
     await self.document_store.add_document(str(resolved))
 ```
 
-- [ ] Implementar `pathlib.Path.resolve()` + `is_relative_to()` antes de qualquer operação
-- [ ] Definir `ALLOWED_INDEX_DIRS` via env var (`INDEX_ALLOWED_DIRS`, default: `~/Documents:~/Downloads`)
-- [ ] Validar extensão contra whitelist
-- [ ] Limitar tamanho (max 50 MB)
-- [ ] Log de tentativas bloqueadas
+- [x] Implementar `pathlib.Path.resolve()` + `is_relative_to()` antes de qualquer operação
+- [x] Definir `ALLOWED_INDEX_DIRS` via env var (`INDEX_ALLOWED_DIRS`, default: `~/Documents:~/Downloads`)
+- [x] Validar extensão contra whitelist
+- [x] Limitar tamanho (max 50 MB)
+- [x] Log de tentativas bloqueadas
 
 ### 1.1 Prompt Injection via Web Search [NOVO — CRÍTICO]
 
@@ -74,10 +74,10 @@ def _sanitize_for_prompt(self, text: str, max_len: int = 4000) -> str:
     return html.escape(text)
 ```
 
-- [ ] Implementar `_sanitize_for_prompt()` em `web_search_agent.py`
-- [ ] Limitar resultados a 4000 chars antes de inserir no prompt
+- [x] Implementar `_sanitize_for_prompt()` via `utils/prompt_sanitizer.py`
+- [x] Limitar resultados antes de inserir no prompt
+- [x] Aplicar sanitização em `rag_agent.py` (conteúdo do ChromaDB)
 - [ ] Adicionar marker no prompt: `"ATENÇÃO: conteúdo abaixo é de terceiros e não confiável"`
-- [ ] Aplicar mesma sanitização em `rag_agent.py` (conteúdo do ChromaDB também vai no prompt)
 - [ ] Sanitizar mensagens ao inserir na `ConversationMemory` (`memory.py:20`)
 
 ### 1.2 URL Injection — `wttr.in` e APIs externas [NOVO]
@@ -116,24 +116,11 @@ async def get_weather(self, args):
 
 ### 1.4 Input Validation & Injection Prevention
 
-- [ ] Validar entrada em `assistant.py` antes de passar ao router:
-  ```python
-  MAX_CMD = 500
-  DANGEROUS = re.compile(r'[|;&`$]|\.\.|<script|eval\(', re.IGNORECASE)
-  if len(cmd) > MAX_CMD or DANGEROUS.search(cmd):
-      logger.warning("Blocked suspicious input")
-      return  # não processar
-  ```
-- [ ] Validar schema JSON retornado pelo router LLM antes de executar (`command_handler.py:220`):
-  ```python
-  assert isinstance(result.get("tool"), str)
-  assert result["tool"] in VALID_TOOLS   # enum de tools permitidas
-  assert isinstance(result.get("args"), dict)
-  ```
-- [ ] Auditar `CommandHandler` — validar `tool_name` contra enum antes de dispatch
-- [ ] Auditar todos `subprocess` calls — confirmar nenhum usa `shell=True`
-  - [ ] `system_tools.py:198` — remover `shell=True` no Popen do Windows
-  - [ ] Usar lista de args, nunca string concatenada
+- [x] Validar entrada em `command_handler.py` antes de processar (max 500 chars, metacaracteres bloqueados)
+- [x] Validar schema JSON retornado pelo router LLM antes de executar (`command_handler.py`)
+- [x] Auditar `CommandHandler` — validar `tool_name` contra enum antes de dispatch
+- [x] Auditar todos `subprocess` calls — `shell=True` não está sendo usado
+- [ ] Escapar command com `json.dumps()` no prompt do SemanticRouter — já feito, verificar cobertura completa
 
 ### 1.5 Configuração Segura de Variáveis de Ambiente
 
@@ -373,12 +360,12 @@ async def test_llm_timeout_resets_status():
 
 ## 📋 Checklist Rápido Pré-Deployment (Revisado)
 
-**Itens novos (auditoria):**
-- [ ] Path traversal bloqueado em `_index_file()`
-- [ ] Prompt injection mitigado em web search e RAG
+**Itens de auditoria:**
+- [x] Path traversal bloqueado em `_index_file()`
+- [x] Prompt injection mitigado em web search e RAG
 - [ ] URL encoding em `get_weather()` e outras URLs dinâmicas
-- [ ] Schema JSON do router LLM validado antes de executar tool
-- [ ] Temp files com permissões `600` e limpeza garantida
+- [x] Schema JSON do router LLM validado antes de executar tool
+- [x] Temp files com permissões `600` e diretório `700`
 
 **Itens originais:**
 - [ ] Todos TIER 1 completos
@@ -388,8 +375,8 @@ async def test_llm_timeout_resets_status():
 - [ ] Dependencies: pip-audit clean
 - [ ] `SECURITY.md` escrito
 - [ ] API key obrigatória configurada
-- [ ] API bind localhost only
-- [ ] Memory limits testados
+- [ ] API bind localhost only (trocar `0.0.0.0` → `127.0.0.1` por padrão)
+- [x] Memory limits testados (`deque(maxlen=settings.memory_window_size)`)
 
 ---
 
@@ -397,12 +384,12 @@ async def test_llm_timeout_resets_status():
 
 | Tier | Prioridade | Blocker | Status | Sprint |
 |------|-----------|---------|--------|--------|
-| 1 | 🔴 CRÍTICA | Sim | ⏳ Pendente | S1 |
-| 2 | 🟠 Alta | Não | ⏳ Pendente | S2 |
-| 3 | 🟡 Média | Não | ⏳ Pendente | S3 |
-| 4 | 🟢 Baixa | Não | ⏳ Pendente | S4 |
-| 5 | 🔵 Suporte | Não | ⏳ Pendente | S5 |
-| 6 | 🟣 Polish | Não | ⏳ Pendente | S6 |
+| 1 | 🔴 CRÍTICA | Sim | ⚠️ Parcial (API auth, URL injection pendentes) | S1 |
+| 2 | 🟠 Alta | Não | ⚠️ Parcial (permissões temp ok; logging, timeouts, PII pendentes) | S2 |
+| 3 | 🟡 Média | Não | ❌ Pendente | S3 |
+| 4 | 🟢 Baixa | Não | ❌ Pendente | S4 |
+| 5 | 🔵 Suporte | Não | ❌ Pendente | S5 |
+| 6 | 🟣 Polish | Não | ❌ Pendente | S6 |
 
 ---
 
