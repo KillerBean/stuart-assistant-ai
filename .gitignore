@@ -9,3 +9,4 @@ venv/
 .vscode/
 .coverage
 htmlcov/
+NEXT-STEPS*.md

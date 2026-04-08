@@ -4,11 +4,12 @@ from stuart_ai.core.config import settings
 from stuart_ai.core.logger import logger
 from stuart_ai.core.exceptions import ToolError
 
+# pylint: disable=import-outside-toplevel
 class DocumentStore:
     def __init__(self):
         self.persist_directory = os.path.join(os.getcwd(), "chroma_db")
         self.collection_name = "stuart_knowledge_base"
-        
+
         self._client = None
         self._embedding_model = None
         self._collection = None
@@ -57,12 +58,12 @@ class DocumentStore:
             raise ToolError(f"File not found: {file_path}")
 
         ext = os.path.splitext(file_path)[1].lower()
-        
+
         try:
             if ext == '.pdf':
                 import pypdf
                 text = ""
-                with open(file_path, 'rb') as f:
+                with open(file_path, 'rb', encoding='utf-8') as f:
                     pdf = pypdf.PdfReader(f)
                     for page in pdf.pages:
                         text += page.extract_text() + "\n"
@@ -78,22 +79,22 @@ class DocumentStore:
         """Processes a file and adds it to the vector store."""
         logger.info("Adding document: %s", file_path)
         text = self._read_file(file_path)
-        
+
         if not text.strip():
             logger.warning("File %s is empty.", file_path)
             return
 
         chunks = self.text_splitter.split_text(text)
-        
+
         # Generate IDs based on filename and chunk index
         ids = [f"{os.path.basename(file_path)}_{i}" for i in range(len(chunks))]
         metadatas = [{"source": file_path, "chunk_index": i} for i in range(len(chunks))]
-        
+
         # Generate embeddings
         embeddings = self.embedding_model.embed_documents(chunks)
-        
+
         from chromadb.api.types import Embedding, Metadata
-        
+
         self.collection.add(
             documents=chunks,
             embeddings=cast(list[Embedding], embeddings),
@@ -105,12 +106,12 @@ class DocumentStore:
     def search(self, query: str, n_results: int = 3) -> list[str]:
         """Searches for relevant document chunks."""
         query_embedding = self.embedding_model.embed_query(query)
-        
+
         results = self.collection.query(
             query_embeddings=[query_embedding],
             n_results=n_results
         )
-        
+
         if results['documents']:
             return results['documents'][0]
         return []

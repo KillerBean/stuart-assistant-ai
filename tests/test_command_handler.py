@@ -114,14 +114,20 @@ async def test_semantic_route_with_args(command_handler_fixture):
 
 @pytest.mark.asyncio
 async def test_semantic_route_not_found(command_handler_fixture):
-    """Tests when semantic router returns a tool that doesn't exist."""
+    """Tests that an unknown tool returned by the router falls back to web_search."""
     handler, mock_speak, mock_router = command_handler_fixture
-    
+
     mock_router.route.return_value = {"tool": "unknown_tool", "args": None}
 
     await handler.process("faça algo impossível")
-    
-    mock_speak.assert_called_once_with("Desculpe, não entendi o que você quis dizer.")
+
+    # Unknown tool must be silently redirected to web_search, never dispatched as-is
+    handler.tools["web_search"].run.assert_called_once()
+    # Must not tell the user it didn't understand — it should attempt a search instead
+    speak_args = [call.args[0] for call in mock_speak.call_args_list]
+    assert not any("não entendi" in a for a in speak_args), (
+        "Should fall back to web_search, not return 'não entendi'"
+    )
 
 @pytest.mark.asyncio
 async def test_semantic_route_general_chat(command_handler_fixture):

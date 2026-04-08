@@ -1,7 +1,6 @@
 import json
 import asyncio
-from typing import Optional, Dict, Any
-from stuart_ai.llm.ollama_llm import OllamaLLM
+from typing import Dict, Any
 from stuart_ai.core.logger import logger
 from stuart_ai.core.exceptions import LLMConnectionError, LLMResponseError
 
@@ -11,7 +10,8 @@ class SemanticRouter:
 
     async def route(self, command: str, history_str: str = "") -> Dict[str, Any]:
         """
-        Analyzes the command and returns the intent and arguments in JSON format, considering conversation history.
+        Analyzes the command and returns the intent and arguments in JSON format,\
+              considering conversation history.
         """
         prompt = f"""
         Você é o cérebro de um assistente virtual chamado Stuart.
@@ -33,6 +33,10 @@ class SemanticRouter:
         - "index_file": Pedido para ler/aprender um arquivo novo. Argumento: "file_path".
         - "add_event": Agendar compromissos. Argumento (JSON): {{"title": "Nome do evento", "datetime": "Data e hora naturais (ex: amanhã as 14h)"}}.
         - "check_calendar": Consultar agenda. Argumento: "data_para_filtrar" (ou null para ver tudo).
+        - "summarize_url": Resumir artigo de uma URL. Argumento: "url".
+        - "summarize_youtube": Resumir vídeo do YouTube. Argumento: "url_do_video".
+        - "explain_error": Explicar um erro ou stack trace. Argumento: "mensagem_de_erro".
+        - "generate_script": Gerar um script Python ou Bash. Argumento: "descrição_da_tarefa".
         - "cancel": O usuário pediu para cancelar, esquecer, ou parar o comando atual. Argumento: null.
         - "general_chat": Conversa casual, cumprimentos ou perguntas que você mesmo pode responder sem ferramentas.
         
@@ -51,7 +55,7 @@ class SemanticRouter:
         Usuário: "Deixa pra lá" -> {{"tool": "cancel", "args": null}}
         Usuário: "Cancela" -> {{"tool": "cancel", "args": null}}
         
-        Comando atual do usuário: "{command}"
+        Comando atual do usuário: {json.dumps(command, ensure_ascii=False)}
         JSON:
         """
 
@@ -59,10 +63,10 @@ class SemanticRouter:
             # We use the synchronous call inside a thread to avoid blocking the loop
             messages = [{"role": "user", "content": prompt}]
             response = await asyncio.to_thread(self.llm.call, messages)
-            
+
             # Clean up response (remove markdown code blocks if present)
             cleaned_response = response.strip().replace("```json", "").replace("```", "").strip()
-            
+
             return json.loads(cleaned_response)
         except json.JSONDecodeError as e:
             logger.error("Failed to decode JSON from router response: %s", e)

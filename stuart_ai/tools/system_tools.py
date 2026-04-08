@@ -1,8 +1,11 @@
 import os
+import pathlib
 import platform
+import re
 import subprocess
 import asyncio
 from datetime import datetime
+from urllib.parse import quote as urlquote
 
 import aiohttp
 import wikipedia
@@ -12,21 +15,27 @@ from stuart_ai.agents.rag.rag_agent import LocalRAGAgent
 from stuart_ai.agents.productivity.calendar_manager import CalendarManager
 from stuart_ai.core.enums import AssistantSignal
 from stuart_ai.core.logger import logger
+from stuart_ai.core.config import settings
 
 
-
+# pylint: disable=unused-argument
 class AssistantTools:
     """
     A class to encapsulate all the tools available to the assistant's router agent.
     Each tool should return a string to be spoken by the command handler.
     """
 
-    def __init__(self, speak_func, confirmation_func, app_aliases, web_search_agent: WebSearchAgent, local_rag_agent: LocalRAGAgent):
+    def __init__(self, speak_func, confirmation_func,
+                 app_aliases, web_search_agent: WebSearchAgent,
+                 local_rag_agent: LocalRAGAgent,
+                 content_agent=None, coding_agent=None):
         self.speak = speak_func
         self.confirm = confirmation_func
         self.app_aliases = app_aliases
         self.web_search_agent = web_search_agent
         self.local_rag_agent = local_rag_agent
+        self.content_agent = content_agent
+        self.coding_agent = coding_agent
         self.calendar_manager = CalendarManager()
 
     async def _add_calendar_event(self, args: dict | str) -> str:
@@ -35,15 +44,15 @@ class AssistantTools:
             if isinstance(args, str):
                 # Fallback if LLM returns string
                 return "Preciso que você especifique o título e a hora separadamente."
-            
+
             title = args.get("title")
             datetime_str = args.get("datetime")
-            
+
             if not title or not datetime_str:
                 return "Preciso do nome do evento e da data/hora."
 
             await self.speak(f"Agendando {title} para {datetime_str}...")
-            return self.calendar_manager.add_event(title, datetime_str)
+            return await asyncio.to_thread(self.calendar_manager.add_event, title, datetime_str)
         except (ValueError, TypeError) as e:
             logger.error("Error adding event: %s", e)
             return "Tive um problema ao salvar o evento."
@@ -51,28 +60,30 @@ class AssistantTools:
     async def _check_calendar(self, date_str: str | dict | None = None) -> str:
         """Consultar agenda."""
         await self.speak("Consultando sua agenda...")
-        
+
         # Handle dict arguments from LLM (e.g. {"date": "amanhã"})
         if isinstance(date_str, dict):
             # Try common keys
             date_str = date_str.get("date") or date_str.get("datetime") or date_str.get("day") or date_str.get("data")
-        
+
         # If it's still not a string (or was None/empty), pass None to list all
         if not isinstance(date_str, str):
             date_str = None
-            
-        return self.calendar_manager.list_events(date_str)
+
+        return await asyncio.to_thread(self.calendar_manager.list_events, date_str)
 
     async def _delete_calendar_event(self, event_title: str) -> str:
         """Excluir um compromisso."""
         await self.speak(f"Excluindo o evento {event_title}...")
-        return self.calendar_manager.delete_event(event_title)
+        return await asyncio.to_thread(self.calendar_manager.delete_event, event_title)
 
     async def _search_local_files(self, query: str) -> str:
-        """Pesquisa nos arquivos locais indexados. Use quando o usuário perguntar sobre documentos, arquivos ou 'o que diz o arquivo X'."""
+        """Pesquisa nos arquivos locais indexados.\
+              Use quando o usuário perguntar sobre documentos,\
+                  arquivos ou 'o que diz o arquivo X'."""
         if not query:
             return "O que você gostaria de pesquisar nos seus arquivos?"
-        
+
         await self.speak("Pesquisando nos seus arquivos...")
         try:
             return await self.local_rag_agent.run(query)
@@ -80,26 +91,74 @@ class AssistantTools:
             logger.error("Error querying local files: %s", e)
             return "Desculpe, tive um erro ao consultar seus arquivos."
 
+    def _resolve_allowed_dirs(self) -> list[pathlib.Path]:
+        """Resolve configured allowed directories to absolute paths."""
+        resolved = []
+        for raw in settings.index_allowed_dirs:
+            try:
+                resolved.append(pathlib.Path(raw).expanduser().resolve())
+            except (ValueError, RuntimeError):
+                pass
+        return resolved
+
     async def _index_file(self, file_path: str) -> str:
-        """Adiciona um arquivo ao índice de busca local. Use quando o usuário pedir para 'ler', 'aprender' ou 'indexar' um arquivo."""
+        """Adiciona um arquivo ao índice de busca local.\
+              Use quando o usuário pedir para 'ler', 'aprender' ou 'indexar' um arquivo."""
         if not file_path:
             return "Qual arquivo você gostaria que eu aprendesse?"
-        
-        # Simple cleanup of path if user spoke it (though usually this tool argument comes from semantic router resolving path)
+
+        # Cleanup quotes that may come from voice transcription
         file_path = file_path.strip().strip('"').strip("'")
-        
-        await self.speak(f"Processando o arquivo {os.path.basename(file_path)}...")
+
+        # Resolve to absolute path to prevent traversal attacks
         try:
-            # We run the blocking add_document in a thread
-            await asyncio.to_thread(self.local_rag_agent.document_store.add_document, file_path)
-            return f"Arquivo {os.path.basename(file_path)} aprendido com sucesso!"
+            resolved = pathlib.Path(file_path).expanduser().resolve()
+        except (ValueError, RuntimeError) as e:
+            logger.warning("Invalid file path rejected: %s — %s", file_path, e)
+            return "Caminho de arquivo inválido."
+
+        # Block path traversal: path must be inside one of the allowed directories
+        allowed_dirs = self._resolve_allowed_dirs()
+        if not any(resolved.is_relative_to(d) for d in allowed_dirs):
+            logger.warning(
+                "Path traversal attempt blocked: '%s' (resolved: '%s')", file_path, resolved
+            )
+            return (
+                "Acesso negado: o arquivo está fora dos diretórios permitidos. "
+                "Apenas arquivos em Documents e Downloads podem ser indexados."
+            )
+
+        # Validate extension
+        allowed_exts = {e.lower() for e in settings.index_allowed_extensions}
+        if resolved.suffix.lower() not in allowed_exts:
+            return (
+                f"Tipo de arquivo não suportado. "
+                f"Extensões permitidas: {', '.join(sorted(allowed_exts))}."
+            )
+
+        # Validate file exists and is a regular file (not a symlink to outside)
+        if not resolved.exists() or not resolved.is_file():
+            return "Arquivo não encontrado. Verifique se o caminho está correto."
+
+        # Validate file size
+        if resolved.stat().st_size > settings.index_max_file_size:
+            limit_mb = settings.index_max_file_size // (1024 * 1024)
+            return f"Arquivo muito grande. O limite é {limit_mb} MB."
+
+        await self.speak(f"Processando o arquivo {resolved.name}...")
+        try:
+            await asyncio.to_thread(
+                self.local_rag_agent.document_store.add_document, str(resolved)
+            )
+            return f"Arquivo {resolved.name} aprendido com sucesso!"
         except (ValueError, TypeError, RuntimeError, OSError, IOError) as e:
-            logger.error("Error indexing file %s: %s", file_path, e)
+            logger.error("Error indexing file '%s': %s", resolved, e)
             return "Não consegui ler o arquivo. Verifique se o caminho está correto."
 
 
     def _get_time(self, *args, **kwargs) -> str:
-        """Retorna a hora e os minutos atuais. Use esta ferramenta sempre que o usuário perguntar as horas."""
+        """Retorna a hora e os minutos atuais.\
+              Use esta ferramenta sempre que o usuário perguntar as horas."""
         now = datetime.now().strftime("%H:%M")
         return f"São {now}."
 
@@ -111,9 +170,11 @@ class AssistantTools:
         return f"Hoje é {now.strftime('%d/%m/%Y')}."
 
     async def _tell_joke(self, *args, **kwargs) -> str:
-        """Conta uma piada aleatória em português. Use quando o usuário pedir para contar uma piada."""
+        """Conta uma piada aleatória em português.\
+              Use quando o usuário pedir para contar uma piada."""
         try:
-            url = "https://v2.jokeapi.dev/joke/Any?lang=pt&blacklistFlags=nsfw,religious,political,racist,sexist,explicit"
+            blacklist_flags = "nsfw,religious,political,racist,sexist,explicit"
+            url = "https://v2.jokeapi.dev/joke/Any?lang=pt&blacklistFlags=" + blacklist_flags
             async with aiohttp.ClientSession() as session:
                 async with session.get(url) as response:
                     response.raise_for_status()
@@ -124,16 +185,17 @@ class AssistantTools:
             return "Desculpe, não consegui buscar uma piada agora."
 
     async def _search_wikipedia(self, search_term: str) -> str:
-        """Pesquisa um termo na Wikipedia e retorna um resumo. Use para perguntas sobre 'o que é' ou 'pesquise sobre'."""
+        """Pesquisa um termo na Wikipedia e retorna um resumo.\
+              Use para perguntas sobre 'o que é' ou 'pesquise sobre'."""
         if not search_term:
             return "Claro, o que você gostaria que eu pesquisasse?"
-        
+
         try:
             # wikipedia library is blocking, run in thread
             def get_summary():
                 wikipedia.set_lang("pt")
                 return wikipedia.summary(search_term, sentences=2)
-            
+
             return await asyncio.to_thread(get_summary)
         except wikipedia.exceptions.PageError:
             return f"Desculpe, não encontrei nenhum resultado para {search_term}."
@@ -143,47 +205,69 @@ class AssistantTools:
             logger.error("Error searching Wikipedia for '%s': %s", search_term, e)
             return "Desculpe, ocorreu um erro ao pesquisar no Wikipedia."
 
+    # Valid city names: letters (including accented), spaces, hyphens. Max 80 chars.
+    _CITY_RE = re.compile(r'^[a-zA-ZÀ-ÿ\s\-]{1,80}$')
+
     async def _get_weather(self, city: str) -> str:
         """Obtém a previsão do tempo para uma cidade específica."""
         if not city:
             return "Claro, para qual cidade você gostaria da previsão do tempo?"
-        
+
+        city = city.strip()
+
+        # Validate city name before building the URL
+        if not self._CITY_RE.match(city):
+            logger.warning("Invalid city name rejected: '%s'", city)
+            return "Nome de cidade inválido. Por favor, informe apenas o nome da cidade."
+
         try:
-            url = f"https://wttr.in/{city}?format=3"
+            url = f"https://wttr.in/{urlquote(city)}?format=3"
             async with aiohttp.ClientSession() as session:
-                async with session.get(url) as response:
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as response:
                     response.raise_for_status()
                     return await response.text()
         except aiohttp.ClientError as e:
             logger.error("Error getting weather for '%s': %s", city, e)
-            return f"Desculpe, não consegui obter a previsão do tempo para {city}."
+            return "Desculpe, não consegui obter a previsão do tempo agora."
 
 
     async def _open_app(self, app_name: str) -> str:
-        """Abre ou inicia um programa no computador. Use para comandos como 'abra o chrome' ou 'inicie o vscode'."""
+        """Abre ou inicia um programa no computador.\
+              Use para comandos como 'abra o chrome' ou 'inicie o vscode'."""
         spoken_name = app_name.strip()
         if not spoken_name:
             return "Claro, qual programa você gostaria de abrir?"
 
         system = platform.system()
-        executable_name = spoken_name.lower()
 
+        # Resolve alias first
         if spoken_name in self.app_aliases and system in self.app_aliases[spoken_name]:
             executable_name = self.app_aliases[spoken_name][system]
+        else:
+            executable_name = spoken_name.lower()
+
+        # Security: whitelist check
+        if executable_name not in settings.allowed_apps:
+            logger.warning("Blocked attempt to open non-whitelisted app: '%s'", executable_name)
+            return f"Desculpe, não tenho permissão para abrir '{spoken_name}'. Peça ao administrador para adicioná-lo à lista de aplicativos permitidos."
 
         try:
             if system == "Windows":
-                await asyncio.to_thread(subprocess.Popen, ['start', executable_name], shell=True)
+                # Use 'cmd /c start' without shell=True to avoid shell injection.
+                # executable_name is already validated against the whitelist above.
+                await asyncio.to_thread(
+                    subprocess.Popen, ["cmd", "/c", "start", executable_name]
+                )
             elif system == "Darwin":
                 await asyncio.to_thread(subprocess.Popen, ['open', '-a', executable_name])
             else:
                 await asyncio.to_thread(subprocess.Popen, [executable_name])
             return f"Abrindo {spoken_name}."
         except FileNotFoundError:
-            return f"Desculpe, não consegui encontrar o programa {spoken_name}."
+            return f"Desculpe, não encontrei o programa '{spoken_name}' instalado."
         except (OSError, subprocess.SubprocessError) as e:
             logger.error("Error opening application: %s", e)
-            return f"Ocorreu um erro ao tentar abrir o {spoken_name}."
+            return f"Tive um problema ao tentar abrir o {spoken_name}."
 
     async def _shutdown_computer(self, *args, **kwargs) -> str:
         """Desliga o computador após uma confirmação do usuário."""
@@ -215,11 +299,13 @@ class AssistantTools:
             return "Ocorreu um erro ao tentar cancelar o comando de desligamento."
 
     async def _perform_web_search(self, search_query: str) -> str:
-        """Pesquisa na web usando um agente de IA para encontrar informações sobre um tópico. Use para pesquisas complexas ou quando a Wikipedia não for suficiente."""
+        """Pesquisa na web usando um agente de IA para encontrar informações sobre um tópico.\
+              Use para pesquisas complexas ou quando a Wikipedia não for suficiente."""
         if not search_query:
             return "Claro, o que você gostaria que eu pesquisasse na web?"
-        
-        await self.speak(f"Ok, pesquisando na web sobre {search_query}. Isso pode levar um momento.")
+
+        await self.speak(f"Ok, pesquisando na web sobre {search_query}.\
+                          Isso pode levar um momento.")
         try:
             # Agent run might be blocking, run in thread
             result = await asyncio.to_thread(self.web_search_agent.run, search_query)
@@ -233,3 +319,123 @@ class AssistantTools:
         await self.speak("Encerrando a assistente. Até logo!")
         return AssistantSignal.QUIT
 
+    # --- Media Controls ---
+
+    async def _media_play_pause(self, *args, **kwargs) -> str:
+        """Alterna play/pause da mídia em reprodução. Requer playerctl instalado."""
+        try:
+            await asyncio.to_thread(subprocess.run, ["playerctl", "play-pause"], check=True)
+            return "Reprodução alternada."
+        except FileNotFoundError:
+            return "playerctl não encontrado. Instale com: sudo apt install playerctl"
+        except (subprocess.SubprocessError, OSError) as e:
+            logger.error("Media play/pause error: %s", e)
+            return "Não consegui controlar a reprodução de mídia."
+
+    async def _media_next(self, *args, **kwargs) -> str:
+        """Avança para a próxima faixa. Requer playerctl instalado."""
+        try:
+            await asyncio.to_thread(subprocess.run, ["playerctl", "next"], check=True)
+            return "Próxima faixa."
+        except FileNotFoundError:
+            return "playerctl não encontrado. Instale com: sudo apt install playerctl"
+        except (subprocess.SubprocessError, OSError) as e:
+            logger.error("Media next error: %s", e)
+            return "Não consegui avançar para a próxima faixa."
+
+    async def _media_previous(self, *args, **kwargs) -> str:
+        """Volta para a faixa anterior. Requer playerctl instalado."""
+        try:
+            await asyncio.to_thread(subprocess.run, ["playerctl", "previous"], check=True)
+            return "Faixa anterior."
+        except FileNotFoundError:
+            return "playerctl não encontrado. Instale com: sudo apt install playerctl"
+        except (subprocess.SubprocessError, OSError) as e:
+            logger.error("Media previous error: %s", e)
+            return "Não consegui voltar para a faixa anterior."
+
+    async def _volume_up(self, *args, **kwargs) -> str:
+        """Aumenta o volume do sistema em 10%. Requer pactl (PulseAudio/PipeWire)."""
+        try:
+            await asyncio.to_thread(
+                subprocess.run,
+                ["pactl", "set-sink-volume", "@DEFAULT_SINK@", "+10%"],
+                check=True
+            )
+            return "Volume aumentado."
+        except FileNotFoundError:
+            return "pactl não encontrado. Verifique se o PulseAudio está instalado."
+        except (subprocess.SubprocessError, OSError) as e:
+            logger.error("Volume up error: %s", e)
+            return "Não consegui aumentar o volume."
+
+    async def _volume_down(self, *args, **kwargs) -> str:
+        """Diminui o volume do sistema em 10%. Requer pactl (PulseAudio/PipeWire)."""
+        try:
+            await asyncio.to_thread(
+                subprocess.run,
+                ["pactl", "set-sink-volume", "@DEFAULT_SINK@", "-10%"],
+                check=True
+            )
+            return "Volume diminuído."
+        except FileNotFoundError:
+            return "pactl não encontrado. Verifique se o PulseAudio está instalado."
+        except (subprocess.SubprocessError, OSError) as e:
+            logger.error("Volume down error: %s", e)
+            return "Não consegui diminuir o volume."
+
+    # --- Content Agent ---
+
+    async def _summarize_url(self, url: str) -> str:
+        """Resume um artigo da web a partir de uma URL."""
+        if not url:
+            return "Qual URL você gostaria que eu resumisse?"
+        if not self.content_agent:
+            return "Agente de conteúdo não está disponível."
+        await self.speak(f"Resumindo o artigo em {url}...")
+        try:
+            return await self.content_agent.summarize_url(url)
+        except (ValueError, RuntimeError) as e:
+            logger.error("Error summarizing URL: %s", e)
+            return "Não consegui resumir o artigo."
+
+    async def _summarize_youtube(self, url: str) -> str:
+        """Resume um vídeo do YouTube a partir da URL."""
+        if not url:
+            return "Qual URL do YouTube você gostaria que eu resumisse?"
+        if not self.content_agent:
+            return "Agente de conteúdo não está disponível."
+        await self.speak("Buscando o transcript do vídeo, aguarde...")
+        try:
+            return await self.content_agent.summarize_youtube(url)
+        except (ValueError, RuntimeError) as e:
+            logger.error("Error summarizing YouTube: %s", e)
+            return "Não consegui resumir o vídeo."
+
+    # --- Coding Agent ---
+
+    async def _explain_error(self, stack_trace: str) -> str:
+        """Explica um stack trace ou mensagem de erro em português."""
+        if not stack_trace:
+            return "Qual erro você gostaria que eu explicasse?"
+        if not self.coding_agent:
+            return "Agente de código não está disponível."
+        await self.speak("Analisando o erro, um momento...")
+        try:
+            return await self.coding_agent.explain_error(stack_trace)
+        except (ValueError, RuntimeError) as e:
+            logger.error("Error explaining error: %s", e)
+            return "Não consegui analisar o erro."
+
+    async def _generate_script(self, description: str) -> str:
+        """Gera um script Python ou Bash com base em uma descrição."""
+        if not description:
+            return "O que você gostaria que o script fizesse?"
+        if not self.coding_agent:
+            return "Agente de código não está disponível."
+        await self.speak(f"Gerando script para: {description}...")
+        try:
+            return await self.coding_agent.generate_script(description)
+        except (ValueError, RuntimeError) as e:
+            logger.error("Error generating script: %s", e)
+            return "Não consegui gerar o script."

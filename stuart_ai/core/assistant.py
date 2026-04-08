@@ -1,9 +1,11 @@
 import os
+import re
 import uuid
 import platform
 import subprocess
 import asyncio
 
+import aiofiles
 import wikipedia
 import edge_tts
 from playsound import playsound
@@ -16,11 +18,12 @@ from stuart_ai.core.enums import AssistantSignal
 from stuart_ai.core.config import settings
 from stuart_ai.core.logger import logger
 from stuart_ai.core.exceptions import AudioDeviceError, TranscriptionError
+from stuart_ai.core.state import AssistantContext, AssistantStatus
 
 from stuart_ai.agents.web_search_agent import WebSearchAgent
 from stuart_ai.agents.rag.rag_agent import LocalRAGAgent
 
-
+# pylint: disable=broad-except
 class Assistant:
     def __init__(
         self,
@@ -30,19 +33,22 @@ class Assistant:
         semantic_router,
         memory,
         whisper_model,
-        speech_recognizer: sr.Recognizer
+        speech_recognizer: sr.Recognizer,
+        context: AssistantContext | None = None,
+        content_agent=None,
+        coding_agent=None,
     ):
         self.keyword = settings.assistant_keyword.lower()
         self.temp_file_path = f"{settings.temp_dir}/temp_audio.wav"
-        
+
         self.recognizer = speech_recognizer
         self.recognizer.energy_threshold = settings.mic_energy_threshold
         self.recognizer.dynamic_energy_threshold = settings.mic_dynamic_energy_threshold
-        
+
         self.model = whisper_model
-        
+
         wikipedia.set_lang("pt")
-        
+
         self.app_aliases = {
             "navegador": { 
                 "Linux": "firefox",
@@ -60,6 +66,7 @@ class Assistant:
         self.llm = llm
         self.web_search_agent = web_search_agent
         self.local_rag_agent = local_rag_agent
+        self.context = context or AssistantContext()
 
         self.command_handler = CommandHandler(
             self.speak,
@@ -68,17 +75,20 @@ class Assistant:
             self.web_search_agent,
             self.local_rag_agent,
             semantic_router,
-            memory
+            memory,
+            content_agent=content_agent,
+            coding_agent=coding_agent,
         )
 
     async def speak(self, text: str):
         """
         Converts text to speech and plays it.
         """
+        self.context.set_status(AssistantStatus.SPEAKING)
         temp_audio_file = f"{settings.temp_dir}/response_{uuid.uuid4()}.mp3"
         try:
             logger.info("Assistant: %s", text)
-            
+
             # Use Edge TTS for high quality audio
             communicate = edge_tts.Communicate(text, "pt-BR-AntonioNeural")
             await communicate.save(temp_audio_file)
@@ -94,13 +104,13 @@ class Assistant:
                     )
                     # We wait a bit or use wait() if we want it to be fully synchronous playback
                     # For now, let's wait for it to finish to mimic original behavior
-                    process = await asyncio.create_subprocess_exec(
+                    proc = await asyncio.create_subprocess_exec(
                         "mpg123", "-q", temp_audio_file,
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL
                     )
-                    await process.wait()
-                except (FileNotFoundError, Exception):
+                    await proc.wait()
+                except Exception:
                     # Fallback to playsound if mpg123 is not available or fails
                     logger.warning("mpg123 not found or failed, falling back to playsound...")
                     await asyncio.to_thread(playsound, temp_audio_file)
@@ -113,6 +123,7 @@ class Assistant:
         finally:
             if os.path.exists(temp_audio_file):
                 os.remove(temp_audio_file)
+            self.context.set_status(AssistantStatus.LISTENING)
 
     async def listen_for_confirmation(self, prompt: str) -> bool:
         """Asks a confirmation question and listens for a 'yes' or 'no' answer."""
@@ -131,13 +142,13 @@ class Assistant:
             audio = await asyncio.to_thread(listen_act)
 
             with TempFileHandler(self.temp_file_path) as temp_file:
-                with open(temp_file, "wb") as f:
+                async with aiofiles.open(temp_file, "wb") as f:
                     if hasattr(audio, '__iter__') and not isinstance(audio, sr.AudioData):
                         audio = next(audio)
-                        f.write(audio.get_wav_data())
+                        await f.write(audio.get_wav_data())
                     elif isinstance(audio, sr.AudioData):
-                        f.write(audio.get_wav_data())
-                
+                        await f.write(audio.get_wav_data())
+
                 try:
                     def transcribe_wrapper():
                         segments, _ = self.model.transcribe(
@@ -151,7 +162,7 @@ class Assistant:
                     response_text_raw = await asyncio.to_thread(transcribe_wrapper)
                 except Exception as e:
                     raise TranscriptionError(f"Transcription failed: {e}") from e
-            
+
             response_text = response_text_raw.lower().strip()
             logger.info("Confirmation response: '%s'", response_text)
             return "sim" in response_text
@@ -171,13 +182,34 @@ class Assistant:
             logger.error("An error occurred during confirmation: %s", e)
             return False
 
+    # Characters that have no place in voice commands and signal injection attempts
+    _DANGEROUS_PATTERN = re.compile(r'[|;&`$]|\.\.|<script', re.IGNORECASE)
+    _MAX_COMMAND_LEN = 500
+
     async def handle_command(self, text: str):
         command = text.lower().replace(self.keyword, "").strip().lstrip(",").strip()
         if not command:
             await self.speak("Sim, em que posso ajudar?")
             return None
-        logger.info("Keyword detected! Command: '%s'", command)
-        return await self.command_handler.process(command)
+
+        # Input validation: length guard
+        if len(command) > self._MAX_COMMAND_LEN:
+            logger.warning("Command rejected: too long (%d chars)", len(command))
+            await self.speak("Desculpe, o comando é muito longo. Por favor, seja mais breve.")
+            return None
+
+        # Input validation: dangerous character patterns
+        if self._DANGEROUS_PATTERN.search(command):
+            logger.warning("Command rejected: suspicious characters detected")
+            await self.speak("Desculpe, não entendi esse comando.")
+            return None
+
+        logger.info("Keyword detected! Command (length=%d)", len(command))
+        self.context.set_status(AssistantStatus.PROCESSING)
+        self.context.record_command(command)
+        result = await self.command_handler.process(command)
+        self.context.set_status(AssistantStatus.LISTENING)
+        return result
 
     async def listen_continuously(self):
         """
@@ -198,7 +230,7 @@ class Assistant:
                         self.recognizer.adjust_for_ambient_noise(source, duration=1)
             except OSError as e:
                 raise AudioDeviceError(f"Could not access microphone: {e}") from e
-        
+
         try:
             await asyncio.to_thread(adjust)
         except AudioDeviceError as e:
@@ -207,7 +239,7 @@ class Assistant:
             return
 
         logger.info("Listening for keyword '%s'...", self.keyword)
-        
+
         while True:
             try:
                 def listen_loop():
@@ -220,20 +252,20 @@ class Assistant:
 
                 audio = await asyncio.to_thread(listen_loop)
                 logger.debug("Audio captured, processing...")
-                
+
                 with TempFileHandler(self.temp_file_path) as temp_file:
-                    with open(temp_file, "wb") as f:
+                    async with aiofiles.open(temp_file, "wb") as f:
                         if hasattr(audio, '__iter__') and not isinstance(audio, sr.AudioData):
                             audio = next(audio)
-                            f.write(audio.get_wav_data())
+                            await f.write(audio.get_wav_data())
                         elif isinstance(audio, sr.AudioData):
-                            f.write(audio.get_wav_data())
-                    
+                            await f.write(audio.get_wav_data())
+
                     # Transcribe using Whisper
                     try:
                         def transcribe_wrapper():
                             segments, _ = self.model.transcribe(
-                                temp_file, 
+                                temp_file,
                                 language="pt",
                                 initial_prompt=initial_prompt,
                                 condition_on_previous_text=False
@@ -243,11 +275,11 @@ class Assistant:
                         text = await asyncio.to_thread(transcribe_wrapper)
                     except Exception as e:
                         raise TranscriptionError(f"Transcription failed: {e}") from e
-                    
+
                 text = text.strip()
                 if not text:
                     continue
-                    
+
                 logger.debug("Heard: %s", text)
                 text_lower = text.lower()
 
@@ -264,15 +296,16 @@ class Assistant:
                 # partial_ratio allows "stuart faça isso" to match "stuart" well even if "stuart" is slightly off?
                 # Actually partial_ratio is 100 if the short string is in the long string.
                 # If we have "stewart faça isso", partial ratio of "stuart" might be high.
-                
+                fuzzy_score = fuzz.partial_ratio(self.keyword, text_lower)
                 # Let's verify word-by-word to find the trigger
                 words = text_lower.split()
                 if not words:
                     continue
-                    
+
                 best_match = process.extractOne(self.keyword, words, scorer=fuzz.ratio)
                 if best_match:
-                    matched_word, score = best_match
+                    matched_word = best_match[0]
+                    score = best_match[1]
                     if score >= settings.wake_word_confidence:
                         logger.info("Wake word detected (fuzzy match: '%s', score: %d): %s", matched_word, score, text)
                         # Replace the wrong word with the correct keyword so handle_command can strip it

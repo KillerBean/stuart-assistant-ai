@@ -1,0 +1,68 @@
+[project]
+name = "stuart-ai"
+version = "0.1.0"
+description = "Voice-activated AI assistant for Portuguese (pt-BR)"
+requires-python = ">=3.14"
+dependencies = [
+    "faster-whisper",
+    "SpeechRecognition",
+    "langchain-community",
+    "langchain-core",
+    "langchain-ollama",
+    "langchain-text-splitters",
+    "pydantic-settings",
+    "aiofiles",
+    "aiohttp",
+    "coloredlogs",
+    "dateparser",
+    "edge-tts",
+    "thefuzz",
+    "python-Levenshtein",
+    "wikipedia",
+    "chromadb",
+    "pypdf",
+    "playsound==1.2.2",
+    "fastapi",
+    "uvicorn",
+    "trafilatura",
+    "youtube-transcript-api",
+    "icalendar>=7.0.3",
+    "ddgs>=9.11.4",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "pytest-mock",
+    "pytest-asyncio",
+    "pylint",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+pythonpath = ["."]
+addopts = "-p no:warnings --strict-markers --cov=stuart_ai --cov-report=html"
+markers = ["asyncio: mark test as async"]
+
+[tool.uv]
+package = false
+
+[tool.pylint.master]
+ignore-paths = ["tests"]
+
+[tool.pylint.messages_control]
+# E0401: false positives — internal imports fail because package = false (not installed)
+# R0903: too-few-public-methods — many small dataclass-like classes are intentional
+# too-many-arguments / too-many-positional-arguments — DI constructors are intentional
+disable = [
+    "E0401",
+    "R0903",
+    "R0913",
+    "R0917",
+]
+
+[tool.pylint.format]
+max-line-length = 120

@@ -25,6 +25,28 @@ class Settings(BaseSettings):
     # Memory Configuration
     memory_window_size: int = 10
 
+    # Security: Path traversal protection for file indexing
+    # Directories where the assistant is allowed to index files.
+    # Paths are resolved at runtime; relative paths are resolved from $HOME.
+    index_allowed_dirs: list[str] = ["~/Documents", "~/Downloads"]
+
+    # Allowed file extensions for indexing
+    index_allowed_extensions: list[str] = [".txt", ".pdf", ".md", ".docx", ".csv"]
+
+    # Max file size for indexing (bytes) — default 50 MB
+    index_max_file_size: int = 50 * 1024 * 1024
+
+    # Security: App Whitelist
+    allowed_apps: list[str] = [
+        "firefox", "chromium", "chrome", "code", "terminal",
+        "nautilus", "files", "spotify", "vlc", "discord", "slack",
+        "gedit", "text-editor", "calculator", "gnome-calculator",
+    ]
+
+    # Management API
+    api_enabled: bool = False
+    api_port: int = 8000
+
     # Web Search
     # Add API keys here if you decide to switch to Serper/Google later
     # serper_api_key: str | None = None

@@ -41,5 +41,6 @@ def test_web_search_run_exception(web_search_agent_fixture):
     result = agent.run("fail query")
     
     assert "encontrei um erro" in result
-    assert "Network Error" in result
+    # Internal error details must NOT be exposed to the user (information disclosure)
+    assert "Network Error" not in result
     mock_llm.call.assert_not_called()

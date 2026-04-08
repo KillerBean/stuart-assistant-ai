@@ -3,6 +3,8 @@ import string
 import inspect
 from stuart_ai.agents.web_search_agent import WebSearchAgent
 from stuart_ai.agents.rag.rag_agent import LocalRAGAgent
+from stuart_ai.agents.content_agent import ContentAgent
+from stuart_ai.agents.coding_agent import CodingAgent
 from stuart_ai.tools.system_tools import AssistantTools
 from stuart_ai.core.enums import AssistantSignal
 from stuart_ai.core.logger import logger
@@ -15,7 +17,7 @@ class SimpleTool:
     def __init__(self, name, func):
         self.name = name
         self.func = func
-    
+
     async def run(self, *args, **kwargs):
         if inspect.iscoroutinefunction(self.func):
             return await self.func(*args, **kwargs)
@@ -24,24 +26,35 @@ class SimpleTool:
 
 class CommandHandler:
     """
-    Handles the processing of user commands using a fast, keyword-based routing system and a Semantic Router.
+    Handles the processing of user commands using a fast,\
+          keyword-based routing system and a Semantic Router.
     """
 
-    def __init__(self, speak_func, confirmation_func, app_aliases, web_search_agent: WebSearchAgent, local_rag_agent: LocalRAGAgent, semantic_router: SemanticRouter, memory: ConversationMemory):
+    def __init__(self, speak_func, confirmation_func,
+                    app_aliases, web_search_agent: WebSearchAgent,
+                    local_rag_agent: LocalRAGAgent,
+                    semantic_router: SemanticRouter,
+                    memory: ConversationMemory,
+                    content_agent: ContentAgent | None = None,
+                    coding_agent: CodingAgent | None = None):
         self.speak = speak_func
         self.confirm = confirmation_func
         self.app_aliases = app_aliases
-        self.web_search_agent = web_search_agent 
+        self.web_search_agent = web_search_agent
         self.local_rag_agent = local_rag_agent
         self.semantic_router = semantic_router
         self.memory = memory
+        self.content_agent = content_agent
+        self.coding_agent = coding_agent
 
         assistant_tools = AssistantTools(
             speak_func=self.speak,
             confirmation_func=self.confirm,
             app_aliases=self.app_aliases,
             web_search_agent=self.web_search_agent,
-            local_rag_agent=self.local_rag_agent
+            local_rag_agent=self.local_rag_agent,
+            content_agent=self.content_agent,
+            coding_agent=self.coding_agent,
         )
 
         # Tools available
@@ -61,7 +74,19 @@ class CommandHandler:
             "shutdown_computer": SimpleTool(name='_shutdown_computer', func=assistant_tools._shutdown_computer),
             "cancel_shutdown": SimpleTool(name='_cancel_shutdown', func=assistant_tools._cancel_shutdown),
             "quit": SimpleTool(name='_quit', func=assistant_tools._quit),
-            "cancel": SimpleTool(name='_cancel', func=lambda: "Tudo bem, comando cancelado.")
+            "cancel": SimpleTool(name='_cancel', func=lambda: "Tudo bem, comando cancelado."),
+            # Media controls
+            "media_play_pause": SimpleTool(name='_media_play_pause', func=assistant_tools._media_play_pause),
+            "media_next": SimpleTool(name='_media_next', func=assistant_tools._media_next),
+            "media_previous": SimpleTool(name='_media_previous', func=assistant_tools._media_previous),
+            "volume_up": SimpleTool(name='_volume_up', func=assistant_tools._volume_up),
+            "volume_down": SimpleTool(name='_volume_down', func=assistant_tools._volume_down),
+            # Content agent
+            "summarize_url": SimpleTool(name='_summarize_url', func=assistant_tools._summarize_url),
+            "summarize_youtube": SimpleTool(name='_summarize_youtube', func=assistant_tools._summarize_youtube),
+            # Coding agent
+            "explain_error": SimpleTool(name='_explain_error', func=assistant_tools._explain_error),
+            "generate_script": SimpleTool(name='_generate_script', func=assistant_tools._generate_script),
         }
 
         # System/Critical commands - kept in Regex for speed and safety
@@ -74,6 +99,12 @@ class CommandHandler:
             (r"\b(que horas (são|tem)|me diga as horas|qual o horário)\b", self.tools["time"]),
             (r"\b(que dia (é hoje|hoje)|data de hoje|qual a data)\b", self.tools["date"]),
             (r"\b(conte uma piada|me faça rir|outra piada)\b", self.tools["joke"]),
+            # Media controls
+            (r"\b(play|pause|pausar|reproduzir|continuar)\b", self.tools["media_play_pause"]),
+            (r"\b(próxima (música|faixa)|avançar música)\b", self.tools["media_next"]),
+            (r"\b(música anterior|voltar música|faixa anterior)\b", self.tools["media_previous"]),
+            (r"\b(aumentar volume|mais volume|volume (mais alto|cima))\b", self.tools["volume_up"]),
+            (r"\b(diminuir volume|menos volume|volume (mais baixo|baixo))\b", self.tools["volume_down"]),
         ]
 
     def _extract_argument(self, command: str, keyword: str) -> str:
@@ -83,19 +114,19 @@ class CommandHandler:
             keyword_pos = command.lower().find(keyword.lower())
             if keyword_pos == -1:
                 return ""
-            
+
             # Get the substring after the keyword
             argument = command[keyword_pos + len(keyword):].strip()
-            
+
             # Remove common articles from the beginning of the argument
             articles = ['o', 'a', 'os', 'as']
             arg_list = argument.split()
             if arg_list and arg_list[0].lower() in articles:
                 argument = ' '.join(arg_list[1:])
-            
+
             # Remove trailing punctuation
             argument = argument.rstrip(string.punctuation)
-                
+
             return argument
         except (AttributeError, TypeError, ValueError) as e:
             logger.error("Error extracting argument: %s", e)
@@ -158,7 +189,7 @@ class CommandHandler:
 
         # 2. Smart Path: Semantic Router
         logger.info("--- Roteando comando '%s' via Semantic Router ---", command)
-        
+
         history = self.memory.get_formatted_history()
         try:
             router_response = await self.semantic_router.route(command, history_str=history)
@@ -172,6 +203,23 @@ class CommandHandler:
             # Fallback to general chat if LLM is offline
             tool_name = "general_chat"
             args = None
+
+        # Schema validation: reject unexpected tool names returned by the router LLM.
+        # This prevents a compromised or hallucinating router from dispatching to
+        # arbitrary callables outside the known tools dict.
+        SAFE_FALLBACKS = {"general_chat", "cancel"}
+        if tool_name not in self.tools and tool_name not in SAFE_FALLBACKS:
+            logger.warning(
+                "Router returned unknown tool '%s' for command — falling back to web_search",
+                tool_name,
+            )
+            tool_name = "web_search"
+            args = command
+
+        # args must be a plain value (str, dict, or None); reject anything else
+        if args is not None and not isinstance(args, (str, dict, list, int, float, bool)):
+            logger.warning("Router returned unexpected args type %s — discarding", type(args))
+            args = command
 
         if tool_name == "general_chat":
             # Simple fallback for now
@@ -193,7 +241,7 @@ class CommandHandler:
                     result = await tool.run(args)
                 else:
                     result = await tool.run()
-                
+
                 if result:
                     self.memory.add_assistant_message(str(result))
                     await self.speak(str(result))
@@ -203,4 +251,3 @@ class CommandHandler:
         else:
             logger.warning("--- Ferramenta '%s' não encontrada ou comando não entendido ---", tool_name)
             await self.speak("Desculpe, não entendi o que você quis dizer.")
-
