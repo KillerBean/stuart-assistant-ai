@@ -36,6 +36,7 @@ dev = [
     "pytest-cov",
     "pytest-mock",
     "pytest-asyncio",
+    "pylint",
 ]
 
 [tool.pytest.ini_options]
@@ -48,3 +49,20 @@ markers = ["asyncio: mark test as async"]
 
 [tool.uv]
 package = false
+
+[tool.pylint.master]
+ignore-paths = ["tests"]
+
+[tool.pylint.messages_control]
+# E0401: false positives — internal imports fail because package = false (not installed)
+# R0903: too-few-public-methods — many small dataclass-like classes are intentional
+# too-many-arguments / too-many-positional-arguments — DI constructors are intentional
+disable = [
+    "E0401",
+    "R0903",
+    "R0913",
+    "R0917",
+]
+
+[tool.pylint.format]
+max-line-length = 120
