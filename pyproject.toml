@@ -21,7 +21,7 @@ dependencies = [
     "wikipedia",
     "chromadb",
     "pypdf",
-    "playsound==1.2.2",
+    "playsound==1.3.0",
     "fastapi",
     "uvicorn",
     "trafilatura",
