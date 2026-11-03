@@ -8,7 +8,7 @@ import asyncio
 import aiofiles
 import wikipedia
 import edge_tts
-from playsound import playsound
+from playsound3 import playsound
 from thefuzz import process, fuzz
 import speech_recognition as sr
 from stuart_ai.utils.tmp_file_handler import TempFileHandler
@@ -96,14 +96,8 @@ class Assistant:
             system = platform.system()
             if system == "Linux":
                 try:
-                    # Use mpg123 on Linux, as playsound can be problematic
-                    await asyncio.create_subprocess_exec(
-                        "mpg123", "-q", temp_audio_file,
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL
-                    )
-                    # We wait a bit or use wait() if we want it to be fully synchronous playback
-                    # For now, let's wait for it to finish to mimic original behavior
+                    # Use mpg123 on Linux, as playsound can be problematic.
+                    # Wait for it to finish to keep playback synchronous.
                     proc = await asyncio.create_subprocess_exec(
                         "mpg123", "-q", temp_audio_file,
                         stdout=subprocess.DEVNULL,

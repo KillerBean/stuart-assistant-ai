@@ -11,7 +11,7 @@ O `requirements.txt` atual tem 252 entradas — tudo o resto é transitivo.
 | `SpeechRecognition` | `speech_recognition` | `main.py`, `assistant.py` |
 | `aiofiles` | `aiofiles` | `assistant.py` |
 | `edge-tts` | `edge_tts` | `assistant.py` |
-| `playsound` | `playsound` | `assistant.py` |
+| `playsound3` | `playsound3` | `assistant.py` |
 | `thefuzz` | `thefuzz` | `assistant.py` |
 | `wikipedia` | `wikipedia` | `assistant.py`, `system_tools.py` |
 | `aiohttp` | `aiohttp` | `system_tools.py` |
