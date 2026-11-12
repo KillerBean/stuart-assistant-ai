@@ -8,6 +8,19 @@ Formato: [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH)
 ### Changed
 - Reorganização de documentação em `docs/roadmap/` e `docs/tasks/`
 - NEXT-STEPS movido para `docs/roadmap/next-steps.md` com status atualizado
+- Gerenciamento de dependências migrado para `uv` (`pyproject.toml` + `uv.lock`); CI passa a usar `uv sync` (#7)
+- Dependência `playsound` substituída por `playsound3` 3.3.2, fork mantido (o original não builda mais) (#12)
+- Actions do CI fixadas por hash de commit; `actions/checkout` e `astral-sh/setup-uv` atualizados (#7, #9, #11)
+
+### Added
+- Pylint nas dependências de desenvolvimento, com configuração no `pyproject.toml` (#7)
+- Dependabot semanal para pip e GitHub Actions, agrupando minor/patch (#8)
+
+### Fixed
+- Áudio duplicado no Linux: `speak()` disparava o `mpg123` duas vezes, sobrepondo a fala (#12)
+
+### Removed
+- Arquivo `stuart_calendar.ics` versionado por engano (#7)
 
 ## [0.6.0] - 2026-03-21 | Security Release
 
